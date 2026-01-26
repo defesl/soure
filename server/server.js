@@ -15,7 +15,16 @@ const gameStore = require("./gameStore");
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+
+// Trust proxy for Render/Heroku (HTTPS behind proxy)
+app.set("trust proxy", 1);
+
+const io = new Server(server, {
+  cors: {
+    origin: true,
+    credentials: true,
+  },
+});
 
 const SESSION_SECRET = "soure-dev-secret-change-later";
 const clientPath = path.join(__dirname, "..", "client");
@@ -30,15 +39,19 @@ const sessionStore = new FileStore({
   ttl: 30 * 24 * 60 * 60,
 });
 
+// Determine if we're in production (HTTPS)
+const isProduction = process.env.NODE_ENV === "production" || process.env.RENDER;
+
 const sessionMiddleware = session({
-  secret: SESSION_SECRET,
+  secret: process.env.SESSION_SECRET || SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   store: sessionStore,
   cookie: {
     httpOnly: true,
-    sameSite: "lax",
-    secure: false,
+    sameSite: isProduction ? "none" : "lax", // "none" required for cross-site on HTTPS
+    secure: isProduction, // true in production (HTTPS), false in dev
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
   },
 });
 
@@ -64,11 +77,15 @@ app.get("/play/:gameId", (req, res) => {
 });
 
 app.get("/api/me", (req, res) => {
+  const hasSession = !!req.session.user;
+  console.log("[api] /api/me request - hasSession:", hasSession, "userId:", req.session.user?.id);
   if (!req.session.user) return res.json({ ok: true, user: null });
   res.json({ ok: true, user: req.session.user });
 });
 
 app.post("/api/register", async (req, res) => {
+  const { username } = req.body;
+  console.log("[api] Registration attempt for username:", username);
   try {
     const result = await auth.register(req.body);
     if (!result.ok) {
@@ -77,7 +94,8 @@ app.post("/api/register", async (req, res) => {
       return res.status(status).json({ ok: false, error: result.error });
     }
     req.session.user = result.user;
-    console.log("[api] User registered:", result.user.username);
+    console.log("[api] User registered successfully:", result.user.username, "userId:", result.user.id);
+    console.log("[api] Session created - sessionID:", req.sessionID);
     return res.status(200).json({ ok: true, user: result.user });
   } catch (error) {
     console.error("[api] Register exception:", error);
@@ -88,6 +106,8 @@ app.post("/api/register", async (req, res) => {
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 app.post("/api/login", async (req, res) => {
+  const { username } = req.body;
+  console.log("[api] Login attempt for username:", username);
   try {
     const result = await auth.login(req.body);
     if (!result.ok) {
@@ -97,7 +117,8 @@ app.post("/api/login", async (req, res) => {
     req.session.user = result.user;
     const rememberMe = !!(req.body && req.body.rememberMe);
     req.session.cookie.maxAge = rememberMe ? THIRTY_DAYS_MS : null;
-    console.log("[api] User logged in:", result.user.username);
+    console.log("[api] User logged in successfully:", result.user.username, "userId:", result.user.id);
+    console.log("[api] Session created - sessionID:", req.sessionID, "cookie.secure:", req.session.cookie.secure, "cookie.sameSite:", req.session.cookie.sameSite);
     return res.status(200).json({ ok: true, user: result.user });
   } catch (error) {
     console.error("[api] Login exception:", error);
@@ -109,6 +130,17 @@ app.post("/api/logout", (req, res) => {
   req.session.destroy(() => {
     res.json({ ok: true });
   });
+});
+
+// Get user's active game (for rejoin feature)
+app.get("/api/active-game", (req, res) => {
+  if (!req.session.user) {
+    return res.json({ ok: true, gameId: null });
+  }
+  const userId = req.session.user.id;
+  const activeGameId = gameStore.getActiveGameId(userId);
+  console.log("[api] /api/active-game for userId:", userId, "-> gameId:", activeGameId);
+  res.json({ ok: true, gameId: activeGameId });
 });
 
 io.engine.use(sessionMiddleware);
@@ -162,7 +194,7 @@ io.on("connection", (socket) => {
       socket.emit("joinGameResult", { ok: false, error: "Invalid game ID" });
       return;
     }
-    console.log("[socket] joinGame request:", gameId, "by", username);
+    console.log("[socket] joinGame request:", gameId, "by", username, "userId:", userId);
     const result = gameStore.joinGame(gameId, userId, username);
     if (!result.ok) {
       console.log("[socket] joinGame failed:", result.error);
@@ -173,6 +205,29 @@ io.on("connection", (socket) => {
     broadcastGameState(gameId);
     socket.emit("joinGameResult", { ok: true, gameId });
     console.log("[socket] Player joined:", gameId, username);
+  });
+
+  socket.on("rejoinGame", (gameId) => {
+    console.log("[socket] rejoinGame request:", gameId, "by", username, "userId:", userId);
+    if (!gameId || typeof gameId !== "string") {
+      socket.emit("rejoinGameResult", { ok: false, error: "Invalid game ID" });
+      return;
+    }
+    
+    const validation = validateGameMembership(socket, gameId, userId);
+    if (!validation.ok) {
+      console.log("[socket] rejoinGame failed - not a member:", validation.error);
+      socket.emit("rejoinGameResult", { ok: false, error: validation.error });
+      return;
+    }
+    
+    // Rejoin the room and send current state
+    socket.join(`game:${gameId}`);
+    const { entry } = validation;
+    const state = entry.game.getState();
+    socket.emit("gameState", state);
+    socket.emit("rejoinGameResult", { ok: true, gameId });
+    console.log("[socket] Player rejoined:", gameId, username);
   });
 
   socket.on("startMatch", () => {

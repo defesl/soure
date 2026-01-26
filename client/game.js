@@ -47,14 +47,74 @@
 
   function initAuth() {
     return fetchMe().then((data) => {
-      if (!data.ok) return Promise.reject(new Error("Failed to fetch /api/me"));
+      console.log("[game] /api/me response:", data);
+      if (!data.ok) {
+        const errorMsg = "Authentication failed. Please try logging in again.";
+        console.error("[game] /api/me failed:", errorMsg);
+        showError(errorMsg);
+        setTimeout(() => {
+          window.location.href = "/login";
+        }, 3000);
+        return Promise.reject(new Error("Failed to fetch /api/me"));
+      }
       user = data.user;
       if (!user) {
-        window.location.href = "/login";
+        console.log("[game] No user session, redirecting to login");
+        showError("Not logged in. Redirecting to login...");
+        setTimeout(() => {
+          window.location.href = "/login";
+        }, 2000);
         return Promise.reject(new Error("redirect"));
       }
+      console.log("[game] User authenticated:", user.username, "userId:", user.id);
       renderLoginStatus();
+      // Check for active game after auth
+      checkActiveGame();
+    }).catch((err) => {
+      console.error("[game] Auth initialization error:", err);
+      if (err.message !== "redirect") {
+        showError("Failed to authenticate. Please refresh the page or log in again.");
+      }
     });
+  }
+
+  function checkActiveGame() {
+    if (!user) return;
+    fetch("/api/active-game", { credentials: "same-origin" })
+      .then((r) => r.json())
+      .then((data) => {
+        console.log("[game] /api/active-game response:", data);
+        if (data.ok && data.gameId) {
+          console.log("[game] Active game found:", data.gameId);
+          showRejoinBanner(data.gameId);
+        } else {
+          hideRejoinBanner();
+        }
+      })
+      .catch((err) => {
+        console.error("[game] Failed to check active game:", err);
+      });
+  }
+
+  function showRejoinBanner(gameId) {
+    const banner = $("rejoinBanner");
+    if (banner) {
+      banner.classList.remove("hidden");
+      const rejoinBtn = $("rejoinBtn");
+      if (rejoinBtn) {
+        rejoinBtn.onclick = () => {
+          console.log("[game] Rejoin button clicked, navigating to:", `/play/${gameId}`);
+          window.location.href = `/play/${gameId}`;
+        };
+      }
+    }
+  }
+
+  function hideRejoinBanner() {
+    const banner = $("rejoinBanner");
+    if (banner) {
+      banner.classList.add("hidden");
+    }
   }
 
   $("logoutBtn").addEventListener("click", () => {
@@ -73,8 +133,15 @@
       hideError();
     });
 
-    socket.on("connect_error", () => {
-      showError("Connection failed. Ensure you are logged in.");
+    socket.on("connect_error", (error) => {
+      console.error("[game] Socket connect_error:", error);
+      const errorMsg = "Connection failed. " + (error.message || "Ensure you are logged in and try refreshing the page.");
+      showError(errorMsg);
+      // On mobile, this might be a session issue - show more helpful message
+      if (navigator.userAgent.match(/Mobile|Android|iPhone|iPad/)) {
+        console.error("[game] Mobile connection error - possible session/cookie issue");
+        showError("Mobile connection failed. Please ensure cookies are enabled and try logging in again.");
+      }
     });
 
     socket.on("error", (payload) => {

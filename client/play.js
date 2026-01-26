@@ -35,17 +35,54 @@
     $("errorEl").classList.add("hidden");
   }
 
+  function showReconnectOverlay() {
+    const overlay = $("reconnectOverlay");
+    if (overlay) {
+      overlay.classList.remove("hidden");
+    }
+  }
+
+  function hideReconnectOverlay() {
+    const overlay = $("reconnectOverlay");
+    if (overlay) {
+      overlay.classList.add("hidden");
+    }
+  }
+
+  $("backToLobbyBtn")?.addEventListener("click", () => {
+    window.location.href = "/game";
+  });
+
   function fetchMe() {
     return fetch("/api/me", { credentials: "same-origin" }).then((r) => r.json());
   }
 
   function initAuth() {
     return fetchMe().then((data) => {
-      if (!data.ok) return Promise.reject(new Error("Failed to fetch /api/me"));
+      console.log("[play] /api/me response:", data);
+      if (!data.ok) {
+        const errorMsg = "Authentication failed. Please try logging in again.";
+        console.error("[play] /api/me failed:", errorMsg);
+        showError(errorMsg);
+        setTimeout(() => {
+          window.location.href = "/login";
+        }, 3000);
+        return Promise.reject(new Error("Failed to fetch /api/me"));
+      }
       user = data.user;
       if (!user) {
-        window.location.href = "/login";
+        console.log("[play] No user session, redirecting to login");
+        showError("Not logged in. Redirecting to login...");
+        setTimeout(() => {
+          window.location.href = "/login";
+        }, 2000);
         return Promise.reject(new Error("redirect"));
+      }
+      console.log("[play] User authenticated:", user.username, "userId:", user.id);
+    }).catch((err) => {
+      console.error("[play] Auth initialization error:", err);
+      if (err.message !== "redirect") {
+        showError("Failed to authenticate. Please refresh the page or log in again.");
       }
     });
   }
@@ -83,19 +120,42 @@
     
     socket.on("disconnect", (reason) => {
       console.log("[play] Socket disconnected:", reason);
-      showError("Connection lost. Reconnecting...");
+      showReconnectOverlay();
     });
     
     socket.on("reconnect", () => {
-      console.log("[play] Socket reconnected");
+      console.log("[play] Socket reconnected, attempting to rejoin game:", gameId);
+      hideReconnectOverlay();
       hideError();
       if (gameId) {
-        socket.emit("joinGame", gameId);
+        // Use rejoinGame instead of joinGame for better handling
+        console.log("[play] Emitting rejoinGame for:", gameId);
+        socket.emit("rejoinGame", gameId);
       }
     });
 
-    socket.on("connect_error", () => {
-      showError("Connection failed. Ensure you are logged in.");
+    socket.on("rejoinGameResult", (result) => {
+      console.log("[play] rejoinGameResult:", result);
+      if (result.ok) {
+        console.log("[play] Successfully rejoined game");
+        hideReconnectOverlay();
+        hideError();
+      } else {
+        console.error("[play] Failed to rejoin:", result.error);
+        showError(result.error || "Failed to rejoin game");
+      }
+    });
+
+    socket.on("connect_error", (error) => {
+      console.error("[play] Socket connect_error:", error);
+      const errorMsg = "Connection failed. " + (error.message || "Ensure you are logged in and try refreshing the page.");
+      showError(errorMsg);
+      showReconnectOverlay();
+      // On mobile, this might be a session issue
+      if (navigator.userAgent.match(/Mobile|Android|iPhone|iPad/)) {
+        console.error("[play] Mobile connection error - possible session/cookie issue");
+        showError("Mobile connection failed. Please ensure cookies are enabled and try logging in again.");
+      }
     });
 
     socket.on("error", (payload) => {

@@ -10,6 +10,9 @@ const maxPlayers = GAME_RULES.maxPlayers;
 /** @type {Map<string, { game: SoureGame, creatorId: string }>} */
 const games = new Map();
 
+/** @type {Map<string, string>} - userId -> activeGameId mapping */
+const userActiveGames = new Map();
+
 function generateGameId() {
   let id;
   do {
@@ -29,6 +32,8 @@ function createGame(creatorId, creatorUsername) {
   const game = new SoureGame(gameId, { minPlayers, maxPlayers });
   game.addPlayer(creatorId, creatorUsername);
   games.set(gameId, { game, creatorId });
+  // Track active game for creator
+  userActiveGames.set(creatorId, gameId);
   console.log("[gameStore] Created game:", gameId, "creator:", creatorUsername);
   return { gameId };
 }
@@ -72,8 +77,36 @@ function joinGame(gameId, userId, username) {
     return { ok: false, error: "Game is full" };
   }
   game.addPlayer(userId, username);
+  // Track active game for player
+  userActiveGames.set(userId, gameId);
   console.log("[gameStore] Player joined:", gameId, username);
   return { ok: true };
+}
+
+/**
+ * Get active game ID for a user
+ * @param {string} userId
+ * @returns {string | null}
+ */
+function getActiveGameId(userId) {
+  const gameId = userActiveGames.get(userId);
+  if (!gameId) return null;
+  
+  // Verify game still exists and user is still a member
+  const entry = games.get(gameId);
+  if (!entry) {
+    userActiveGames.delete(userId);
+    return null;
+  }
+  
+  const state = entry.game.getState();
+  const isMember = state.players.some((p) => p.id === userId);
+  if (!isMember) {
+    userActiveGames.delete(userId);
+    return null;
+  }
+  
+  return gameId;
 }
 
 module.exports = {
@@ -83,4 +116,5 @@ module.exports = {
   createGame,
   getGame,
   joinGame,
+  getActiveGameId,
 };

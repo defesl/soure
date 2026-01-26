@@ -59,6 +59,15 @@
 
     <!-- Error Message -->
     <div class="error-msg hidden" id="errorEl" role="alert" style="position: fixed; top: 70px; left: 50%; transform: translateX(-50%); z-index: 1000; max-width: 500px; pointer-events: none;"></div>
+
+    <!-- Reconnect Overlay -->
+    <div class="reconnect-overlay hidden" id="reconnectOverlay">
+      <div class="reconnect-content">
+        <div class="reconnect-spinner"></div>
+        <p class="reconnect-text">Disconnected. Trying to reconnect…</p>
+        <button type="button" class="btn btn-primary" id="backToLobbyBtn" style="margin-top: 16px;">Back to Lobby</button>
+      </div>
+    </div>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
