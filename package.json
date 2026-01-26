@@ -2,7 +2,8 @@
   "name": "onlinegame",
   "version": "1.0.0",
   "description": "Soure - Online strategy game with resources, diplomacy, and barbarians",
-  "main": "index.js",
+  "main": "server/server.js",
+  "private": true,
   "scripts": {
     "dev": "node server/server.js",
     "start": "node server/server.js",

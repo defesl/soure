@@ -131,7 +131,9 @@ For production (e.g., Render, Railway, Heroku):
 - `npm run setup` - Install dependencies and generate Prisma client
 - `npm run prisma:generate` - Generate Prisma Client
 - `npm run prisma:migrate:dev` - Create and apply database migrations (development)
+- `npm run prisma:migrate` - Alias for `prisma:migrate:dev`
 - `npm run prisma:migrate:deploy` - Deploy migrations (production)
+- `npm run prisma:deploy` - Alias for `prisma:migrate:deploy`
 - `npm run prisma:studio` - Open Prisma Studio (database GUI)
 
 ## Project Structure
