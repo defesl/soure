@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Soure — Register</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="page">
+    <a class="back-link" href="/">← Back to menu</a>
+    <div class="card">
+      <div class="brand">
+        <h1>Soure</h1>
+        <p>Create an account</p>
+      </div>
+      <form id="registerForm">
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input type="text" id="username" class="input" placeholder="3–20 characters" autocomplete="username" />
+          <p class="helper">Letters, numbers; stored case-insensitive.</p>
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" class="input" placeholder="At least 6 characters" autocomplete="new-password" />
+          <p class="helper">Minimum 6 characters. Never stored in plaintext.</p>
+        </div>
+        <button type="submit" class="btn btn-primary" id="submitBtn">Create account</button>
+      </form>
+      <div id="msg" class="alert alert-error hidden" role="alert"></div>
+      <div id="success" class="alert alert-success hidden" role="status"></div>
+      <p class="helper" style="margin-top: 16px;">
+        Already have an account? <a href="/login">Login</a>
+      </p>
+    </div>
+  </div>
+  <script>
+    (function () {
+      const form = document.getElementById("registerForm");
+      const msg = document.getElementById("msg");
+      const success = document.getElementById("success");
+      const submitBtn = document.getElementById("submitBtn");
+
+      function showError(text) {
+        success.classList.add("hidden");
+        msg.textContent = text;
+        msg.classList.remove("hidden");
+      }
+      function showSuccess(text) {
+        msg.classList.add("hidden");
+        success.textContent = text;
+        success.classList.remove("hidden");
+      }
+      function hideAlerts() {
+        msg.classList.add("hidden");
+        success.classList.add("hidden");
+      }
+
+      form.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        hideAlerts();
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Creating…";
+
+        const username = document.getElementById("username").value.trim();
+        const password = document.getElementById("password").value;
+
+        if (!username || !password) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Create account";
+          showError("Please enter both username and password");
+          return;
+        }
+
+        try {
+          const r = await fetch("/api/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password }),
+            credentials: "same-origin"
+          });
+
+          let data;
+          try {
+            data = await r.json();
+          } catch (parseError) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Create account";
+            showError("Server error: Invalid response. Please try again.");
+            return;
+          }
+
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Create account";
+
+          if (!data || !data.ok) {
+            showError(data?.error || "Registration failed. Please try again.");
+            return;
+          }
+
+          showSuccess("Account created! Redirecting…");
+          setTimeout(() => {
+            window.location.href = "/game";
+          }, 1000);
+        } catch (error) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Create account";
+          showError("Network error: " + (error.message || "Could not connect to server. Please check your connection."));
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

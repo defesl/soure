@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Soure — Game</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="index-layout">
+    <aside class="index-sidebar">
+      <div class="brand">
+        <h1>Soure</h1>
+        <p>Strategy · Resources · Barbarians</p>
+      </div>
+      <nav class="index-menu">
+        <a class="sidebar-tab active" href="/game">
+          <span class="tab-icon">🎮</span>
+          <span>Game</span>
+        </a>
+        <a class="sidebar-tab" href="#" onclick="alert('Coming soon'); return false;">
+          <span class="tab-icon">👥</span>
+          <span>Friends</span>
+        </a>
+        <a class="sidebar-tab" href="#" onclick="alert('Coming soon'); return false;">
+          <span class="tab-icon">📦</span>
+          <span>Resources</span>
+        </a>
+        <a class="sidebar-tab" href="#" onclick="alert('Coming soon'); return false;">
+          <span class="tab-icon">⚙️</span>
+          <span>Settings</span>
+        </a>
+      </nav>
+      <div style="margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border);">
+        <div style="margin-bottom: 8px; font-size: 0.85rem; color: var(--muted);" id="loginStatus">Loading…</div>
+        <a href="/login" id="loginLink" class="btn btn-primary hidden" style="width: 100%; margin-bottom: 8px;">Login</a>
+        <button type="button" class="btn btn-danger" id="logoutBtn" style="width: 100%;">Logout</button>
+      </div>
+    </aside>
+    <main class="index-main" style="padding: 0;">
+      <div class="game-container">
+        <header class="game-header">
+          <div class="left">
+            <a href="/">← Menu</a>
+          </div>
+        </header>
+
+    <section class="game-section" id="lobbySection">
+      <h3>Lobby</h3>
+      <div class="game-actions">
+        <button type="button" class="btn" id="createBtn">Create Game</button>
+        <input type="text" class="input" id="joinInput" placeholder="Game ID" />
+        <button type="button" class="btn" id="joinBtn">Join Game</button>
+      </div>
+      <div id="lobbyPlayers" class="lobby-players hidden"></div>
+      <div id="lobbyGameId" class="lobby-game-id hidden" style="margin-top: 16px;">
+        <p style="margin: 0 0 8px 0; color: var(--muted); font-size: 0.9rem;">Game ID:</p>
+        <p style="margin: 0; font-size: 1.2rem; font-weight: 600; color: var(--accent); font-family: monospace;" id="lobbyGameIdText">—</p>
+      </div>
+      <div id="lobbyStartBtn" class="hidden" style="margin-top: 16px;">
+        <button type="button" class="btn btn-primary" id="startBtnLobby">Start Game</button>
+      </div>
+    </section>
+
+    <section class="game-section hidden" id="gameInfoSection">
+      <h3>Game</h3>
+      <p>Game ID: <strong id="gameIdEl">—</strong></p>
+      <p>Phase: <strong id="phaseEl">—</strong> · Current: <strong id="currentPlayerEl">—</strong></p>
+      
+      <!-- Centered Dice UI -->
+      <div id="diceContainer" class="dice-container hidden" style="margin: 24px 0;">
+        <div class="dice-card" id="dice1">?</div>
+        <div class="dice-card" id="dice2">?</div>
+      </div>
+      <div id="diceResult" class="dice-result hidden" style="text-align: center; margin-top: 12px;"></div>
+      
+      <div class="game-actions game-actions-mt">
+        <button type="button" class="btn btn-primary hidden" id="rollBtn">Roll Dice</button>
+        <button type="button" class="btn hidden" id="endTurnBtn">End Turn</button>
+      </div>
+    </section>
+
+    <section class="game-section hidden" id="resourcesSection">
+      <h3>Resources</h3>
+      <div class="resources-grid" id="resourcesGrid"></div>
+    </section>
+
+    <section class="game-section hidden" id="logSection">
+      <h3>Event log</h3>
+      <div class="event-log" id="eventLog"></div>
+    </section>
+
+    <section class="game-section offer-panel hidden" id="offerSection">
+      <h3>Barbarians — Trade offer</h3>
+      <p id="offerDesc"></p>
+      <div id="offerCurrent" class="hidden">
+        <label>Request resource:</label>
+        <select id="offerRequest" class="input">
+          <option value="any">Any</option>
+          <option value="clay">Clay</option>
+          <option value="flint">Flint</option>
+          <option value="sand">Sand</option>
+          <option value="water">Water</option>
+          <option value="cattle">Cattle</option>
+          <option value="people">People</option>
+        </select>
+        <button type="button" class="btn" id="createOfferBtn">Create offer</button>
+        <button type="button" class="btn" id="placeCampBtn">Place in camp</button>
+      </div>
+      <div id="offerOthers" class="hidden">
+        <p>Accept by giving 1 resource:</p>
+        <div id="acceptButtons"></div>
+      </div>
+    </section>
+
+        <div class="error-msg hidden" id="errorEl" role="alert"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Bottom Inventory Bar -->
+  <div class="inventory-bar hidden" id="inventoryBar">
+    <div class="inventory-content">
+      <span class="inventory-label">My Resources:</span>
+      <div class="inventory-chips" id="inventoryChips"></div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/game.js"></script>
+</body>
+</html>

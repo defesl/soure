@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Soure — Game</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="play-layout">
+    <!-- Top Bar -->
+    <header class="play-header">
+      <div class="play-header-left">
+        <a href="/game" class="btn" style="font-size: 0.9rem;">← Lobby</a>
+        <span class="sep">|</span>
+        <span class="play-game-id">
+          Game ID: <strong id="gameIdDisplay" style="font-family: monospace; color: var(--accent);">—</strong>
+          <button type="button" class="btn" id="copyGameIdBtn" style="margin-left: 8px; padding: 4px 8px; font-size: 0.8rem;">Copy</button>
+        </span>
+        <span class="sep">|</span>
+        <span class="play-timer" id="timerDisplay" style="font-size: 0.9rem; color: var(--muted);">Time: 00:00</span>
+      </div>
+      <div class="play-header-right">
+        <button type="button" class="btn btn-danger" id="logoutBtn">Logout</button>
+      </div>
+    </header>
+
+    <!-- Main Game Area -->
+    <main class="play-main">
+      <!-- Left: Player List -->
+      <aside class="play-sidebar-left">
+        <h3 style="margin: 0 0 16px 0; color: var(--muted); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px;">Players</h3>
+        <div id="playerList" class="player-list"></div>
+      </aside>
+
+      <!-- Center: Dice Panel -->
+      <div class="play-center">
+        <div class="dice-panel">
+          <h3 style="margin: 0 0 24px 0; color: var(--muted); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px;">Dice</h3>
+          <div class="dice-container" id="diceContainer">
+            <div class="dice-card" id="dice1">?</div>
+            <div class="dice-card" id="dice2">?</div>
+          </div>
+          <div id="diceResult" class="dice-result hidden"></div>
+          <div class="dice-actions" style="margin-top: 24px;">
+            <button type="button" class="btn btn-primary hidden" id="rollBtn">Roll Dice</button>
+            <button type="button" class="btn hidden" id="endTurnBtn">End Turn</button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Bottom: Inventory Bar -->
+    <div class="inventory-bar" id="inventoryBar">
+      <div class="inventory-content">
+        <span class="inventory-label">My Resources:</span>
+        <div class="inventory-chips" id="inventoryChips"></div>
+      </div>
+    </div>
+
+    <!-- Error Message -->
+    <div class="error-msg hidden" id="errorEl" role="alert" style="position: fixed; top: 70px; left: 50%; transform: translateX(-50%); z-index: 1000; max-width: 500px; pointer-events: none;"></div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/play.js"></script>
+</body>
+</html>

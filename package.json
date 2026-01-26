@@ -1,0 +1,37 @@
+{
+  "name": "onlinegame",
+  "version": "1.0.0",
+  "description": "Soure - Online strategy game with resources, diplomacy, and barbarians",
+  "main": "index.js",
+  "scripts": {
+    "dev": "node server/server.js",
+    "start": "node server/server.js",
+    "setup": "npm install && npm run prisma:generate",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:studio": "prisma studio"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20 <24"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.2",
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "session-file-store": "^1.5.0",
+    "socket.io": "^4.8.3"
+  },
+  "devDependencies": {
+    "prisma": "^6.19.2"
+  }
+}

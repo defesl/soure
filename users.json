@@ -1,0 +1,32 @@
+[
+  {
+    "id": "u2cm8vmh",
+    "username": "defesl74@gmail.com",
+    "passwordHash": "$2b$10$.tomQ8Y5iQ6rzuuyUjNkD.epkX96QKsyy.QrU73t19if8a.E7U21q",
+    "createdAt": "2026-01-25T18:44:01.030Z"
+  },
+  {
+    "id": "iad27zxe",
+    "username": "pirir",
+    "passwordHash": "$2b$10$6Flc9Rs8OmUz.w3nUbadZ.N67VsVLN3tpg2EVUHn0ihwZj1YXTKqG",
+    "createdAt": "2026-01-25T19:40:21.783Z"
+  },
+  {
+    "id": "hw7evg9b",
+    "username": "admin",
+    "passwordHash": "$2b$10$ctQ5nBSUe0V3.XxKs4ewtOfwCZ0GOFgY5k37mLPhPoR4owvO.Ce82",
+    "createdAt": "2026-01-25T19:40:40.038Z"
+  },
+  {
+    "id": "8n1e2wjl",
+    "username": "juise",
+    "passwordHash": "$2b$10$6DLWumht3BNz4vI.CD/UbuTQLUzNr.zkYLoZMBzQR66f0tsOHll0i",
+    "createdAt": "2026-01-25T19:42:03.486Z"
+  },
+  {
+    "id": "6sqg06rk",
+    "username": "test@gmail.com",
+    "passwordHash": "$2b$10$Z.TL7KotL3LmrUmUMoM1DuHkKhGHrh6OYsVi6ILvq0n/3CPpncAau",
+    "createdAt": "2026-01-26T01:20:39.597Z"
+  }
+]
