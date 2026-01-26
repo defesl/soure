@@ -1,89 +1,117 @@
-# Setup and Run - Quick Guide
+# Setup and Run Guide
 
-## ✅ One-Time Setup (5 minutes)
+Quick setup instructions to get the project running.
+
+## Prerequisites
+
+- Node.js 20+ (use `nvm use 20` if you have nvm)
+- Supabase account and project
+
+## Initial Setup (One-Time)
+
+### 1. Install Dependencies
 
 ```bash
-# 1. Install dependencies
 npm install
-
-# 2. Generate Prisma client
-npm run prisma:generate
-
-# 3. Create database tables
-npm run prisma:migrate
 ```
 
-**That's it!** The `.env` file is already configured with SQLite (no Supabase needed).
+### 2. Configure Environment
 
----
+Copy `.env.example` to `.env`:
 
-## ✅ Start the Server
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and add your Supabase connection string:
+
+```env
+DATABASE_URL="postgresql://postgres:YOUR_PASSWORD@db.xxxxx.supabase.co:5432/postgres"
+SESSION_SECRET="your-random-secret-here"
+```
+
+### 3. Generate Prisma Client
+
+```bash
+npm run prisma:generate
+```
+
+### 4. Run Database Migrations
+
+```bash
+npm run prisma:migrate:dev
+```
+
+This creates all necessary tables in your Supabase database.
+
+## Running the Server
+
+### Development Mode
+
+```bash
+npm run dev
+```
+
+Or:
 
 ```bash
 npm start
 ```
 
-Server runs at: `http://localhost:3000`
+The server will start at `http://localhost:3000`
 
----
+## Available Commands
 
-## ✅ Test the Application
+- `npm install` - Install all dependencies
+- `npm start` or `npm run dev` - Start the development server
+- `npm run prisma:generate` - Generate Prisma Client
+- `npm run prisma:migrate:dev` - Create and apply database migrations (development)
+- `npm run prisma:migrate:deploy` - Deploy migrations (production)
+- `npm run prisma:studio` - Open Prisma Studio (database GUI)
 
-### Quick Test Flow:
+## Troubleshooting
 
-1. **Register**: Go to `http://localhost:3000/register`
-   - Create an account
-   - Should redirect to `/game`
+### Server won't start
 
-2. **Create Game**: Click "Create Game"
-   - Lobby appears with Game ID
-   - Your player circle shows
+- Check `.env` file exists and has valid `DATABASE_URL`
+- Verify `DATABASE_URL` is a valid Supabase PostgreSQL connection string
+- Run `npm run prisma:generate` before starting server
+- Ensure database migrations are applied: `npm run prisma:migrate:dev`
 
-3. **Start Game**: Click "Start Game"
-   - Redirects to `/play/[gameId]`
-   - Dice UI appears
+### Database connection errors
 
-4. **Roll Dice**: Click "Roll Dice"
-   - See animation and result
-   - Resources update
+- Verify Supabase project is active
+- Check connection string format in `.env`
+- Ensure database password is correct
+- If password has special characters, URL-encode them
 
-### Multiplayer Test:
+## Project Structure
 
-1. **Player 1**: Create game → Note Game ID
-2. **Player 2**: 
-   - Open incognito window
-   - Login with different account
-   - Join by Game ID
-3. **Both**: See 2 player circles → Creator starts → Both go to play page
+```
+OnlineGame/
+├── client/          # Frontend (HTML, CSS, JS)
+├── server/          # Backend (Express, Socket.io)
+│   ├── server.js    # Main server entry point
+│   ├── auth.js       # Authentication logic
+│   ├── gameEngine.js # Game logic
+│   ├── gameStore.js  # Game state management
+│   └── prismaClient.js # Prisma client setup
+├── prisma/          # Database schema and migrations
+├── .env             # Environment variables (not committed)
+└── package.json     # Dependencies and scripts
+```
 
----
+## Production Deployment
 
-## 🐛 Troubleshooting
+For production (Render, Railway, Heroku):
 
-### Server won't start:
-- Check `.env` exists: `cat .env | grep DATABASE_URL`
-- Should show: `DATABASE_URL="file:./dev.db"`
-- Run: `npm run prisma:generate` then `npm run prisma:migrate`
-
-### Registration/Login fails:
-- Check server console for errors
-- Verify database exists: `ls -la dev.db`
-- Check browser console for network errors
-
-### Game doesn't work:
-- Check browser console
-- Verify socket connection (network tab)
-- Check you're logged in: `/api/me` should return user
-
----
-
-## 📝 Files Created
-
-- `dev.db` - SQLite database (local, no setup needed)
-- `.sessions/` - Session storage (auto-created)
-
----
-
-## 🚀 Ready to Test!
-
-Run `npm start` and follow the test checklist in `MANUAL_TEST_CHECKLIST.md`
+1. Set `DATABASE_URL` environment variable
+2. Set `SESSION_SECRET` environment variable
+3. Run migrations:
+   ```bash
+   npm run prisma:migrate:deploy
+   ```
+4. Start server:
+   ```bash
+   npm start
+   ```
