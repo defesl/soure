@@ -176,23 +176,36 @@ io.on("connection", (socket) => {
   });
 
   socket.on("startMatch", () => {
+    console.log("[socket] startMatch received from userId:", userId, "socketId:", socket.id);
     const gameId = [...socket.rooms].find((r) => r.startsWith("game:"));
     if (!gameId) {
+      console.log("[socket] startMatch failed: no game room found");
       socket.emit("error", { message: "You are not in a game" });
       return;
     }
     const g = gameId.replace("game:", "");
+    console.log("[socket] startMatch for gameId:", g);
     const validation = validateGameMembership(socket, g, userId);
     if (!validation.ok) {
+      console.log("[socket] startMatch validation failed:", validation.error);
       socket.emit("error", { message: validation.error });
       return;
     }
     const { entry } = validation;
+    console.log("[socket] startMatch - game state:", {
+      creatorId: entry.game.creatorId,
+      currentUserId: userId,
+      playersCount: entry.game.players.length,
+      minPlayers: entry.game.minPlayers,
+      phase: entry.game.phase
+    });
     const result = entry.game.startMatch(userId);
     if (!result.ok) {
+      console.log("[socket] startMatch failed:", result.error);
       socket.emit("error", { message: result.error });
       return;
     }
+    console.log("[socket] startMatch succeeded, broadcasting state");
     broadcastGameState(g);
     console.log("[socket] Match started:", g);
   });

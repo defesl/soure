@@ -21,7 +21,7 @@
         <span class="play-timer" id="timerDisplay" style="font-size: 0.9rem; color: var(--muted);">Time: 00:00</span>
       </div>
       <div class="play-header-right">
-        <button type="button" class="btn btn-danger" id="logoutBtn">Logout</button>
+        <!-- Logout removed - only in Settings tab -->
       </div>
     </header>
 
@@ -35,17 +35,16 @@
 
       <!-- Center: Dice Panel -->
       <div class="play-center">
-        <div class="dice-panel">
-          <h3 style="margin: 0 0 24px 0; color: var(--muted); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px;">Dice</h3>
+        <div class="dice-area">
           <div class="dice-container" id="diceContainer">
             <div class="dice-card" id="dice1">?</div>
             <div class="dice-card" id="dice2">?</div>
           </div>
           <div id="diceResult" class="dice-result hidden"></div>
-          <div class="dice-actions" style="margin-top: 24px;">
-            <button type="button" class="btn btn-primary hidden" id="rollBtn">Roll Dice</button>
-            <button type="button" class="btn hidden" id="endTurnBtn">End Turn</button>
-          </div>
+        </div>
+        <div class="dice-actions-right">
+          <button type="button" class="btn btn-primary hidden" id="rollBtn">Roll Dice</button>
+          <button type="button" class="btn hidden" id="endTurnBtn">End Turn</button>
         </div>
       </div>
     </main>

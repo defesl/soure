@@ -110,9 +110,41 @@ class SoureGame {
     this.extraTurn = isDouble;
 
     if (total === 8) {
-      this.phase = "barbarians";
-      addToLog(this.eventLog, `Barbarians activated! (rolled 8) ${current.name} must choose placement.`);
+      // Steal 1 resource from each opponent
+      const currentPlayerId = current.id;
+      let stolenCount = 0;
+      
+      this.players.forEach((p) => {
+        if (p.id !== currentPlayerId) {
+          const opponentRes = this.resources[p.id];
+          const opponentTotal = totalResources(opponentRes);
+          
+          if (opponentTotal > 0) {
+            // Find first available resource in priority order: people, cattle, water, sand, flint, clay
+            const priorityOrder = ["people", "cattle", "water", "sand", "flint", "clay"];
+            let stolen = false;
+            
+            for (const resourceType of priorityOrder) {
+              if (opponentRes[resourceType] > 0) {
+                opponentRes[resourceType] -= 1;
+                this.resources[currentPlayerId][resourceType] += 1;
+                stolen = true;
+                stolenCount++;
+                addToLog(this.eventLog, `${current.name} stole 1 ${resourceType} from ${p.name}.`);
+                break;
+              }
+            }
+          }
+        }
+      });
+      
+      if (stolenCount > 0) {
+        addToLog(this.eventLog, `Barbarians activated! (rolled 8) ${current.name} stole ${stolenCount} resource(s) from opponents.`);
+      } else {
+        addToLog(this.eventLog, `Barbarians activated! (rolled 8) ${current.name} rolled 8, but no opponents had resources to steal.`);
+      }
 
+      // Check for resource overflow (>8) after stealing
       this.players.forEach((p) => {
         const res = this.resources[p.id];
         const tot = totalResources(res);
@@ -123,7 +155,24 @@ class SoureGame {
         }
       });
 
-      return { ok: true, roll: this.lastRoll, barbarians: true };
+      // Automatically advance turn after processing 8 (no barbarians phase, no stall)
+      this.phase = "main";
+      
+      // Advance turn to next player (turn ends automatically after 8)
+      if (this.extraTurn) {
+        this.extraTurn = false;
+        addToLog(this.eventLog, `${current.name} rolled 8 and stole ${stolenCount} resource(s). Extra turn from doubles cancelled.`);
+      } else {
+        addToLog(this.eventLog, `${current.name} rolled 8 and stole ${stolenCount} resource(s).`);
+      }
+      
+      // Advance to next player
+      this.currentTurnIndex = (this.currentTurnIndex + 1) % this.players.length;
+      const next = this.players[this.currentTurnIndex];
+      this.phase = "roll";
+      addToLog(this.eventLog, `Turn passed to ${next.name}.`);
+      
+      return { ok: true, roll: this.lastRoll, barbarians: false, stole: stolenCount, turnAdvanced: true };
     }
 
     this.phase = "main";

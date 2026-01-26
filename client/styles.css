@@ -688,7 +688,7 @@ a:hover {
   border-radius: 12px;
 }
 
-/* Inventory bar - Fixed at bottom */
+/* Inventory bar - Fixed at bottom, always visible */
 .inventory-bar {
   flex-shrink: 0;
   background: linear-gradient(180deg, transparent 0%, var(--card) 30%, var(--card) 100%);
@@ -696,6 +696,9 @@ a:hover {
   padding: 16px 24px;
   box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5);
   z-index: 10;
+  /* Ensure it's always within viewport */
+  max-height: 80px;
+  overflow: visible;
 }
 
 .inventory-content {
@@ -809,7 +812,8 @@ html, body {
   gap: 0;
   overflow: hidden;
   min-height: 0;
-  max-height: calc(100vh - 120px); /* Header + Inventory bar */
+  /* Ensure main area fits within viewport accounting for header and inventory */
+  height: calc(100vh - 60px - 80px); /* Header ~60px + Inventory ~80px */
 }
 
 .play-sidebar-left {
@@ -823,30 +827,32 @@ html, body {
 
 .play-center {
   flex: 1;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto;
   align-items: center;
-  justify-content: center;
+  justify-items: center;
   padding: 40px;
   overflow: hidden;
   min-height: 0;
+  position: relative;
 }
 
-.dice-panel {
-  width: 100%;
-  max-width: 600px;
-  padding: 40px;
-  background: linear-gradient(135deg, var(--card) 0%, rgba(26, 26, 31, 0.95) 100%);
-  border: 1px solid var(--border);
-  border-radius: 24px;
-  box-shadow: var(--shadow-lg);
-  text-align: center;
-}
-
-.dice-actions {
+.dice-area {
   display: flex;
-  gap: 12px;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.dice-actions-right {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  padding-left: 40px;
+  position: relative;
 }
 
 .player-list {
@@ -950,20 +956,31 @@ html, body {
   }
   .inventory-bar {
     padding: 12px 16px;
+    max-height: 70px;
   }
   .play-main {
     grid-template-columns: 1fr;
+    height: calc(100vh - 50px - 70px); /* Smaller header + inventory on mobile */
   }
   .play-sidebar-left {
     order: -1;
     border-right: none;
     border-bottom: 1px solid var(--border);
-    max-height: 200px;
+    max-height: 150px;
   }
   .play-center {
     padding: 20px;
+    grid-template-columns: 1fr;
+    gap: 20px;
   }
-  .dice-panel {
-    padding: 24px;
+  .dice-actions-right {
+    padding-left: 0;
+    width: 100%;
+    flex-direction: row;
+    justify-content: center;
+  }
+  .play-header {
+    padding: 8px 12px;
+    font-size: 0.85rem;
   }
 }

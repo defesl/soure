@@ -68,7 +68,10 @@
   function connectSocket() {
     socket = io({ withCredentials: true });
 
-    socket.on("connect", () => hideError());
+    socket.on("connect", () => {
+      console.log("[game] Socket connected, id:", socket.id);
+      hideError();
+    });
 
     socket.on("connect_error", () => {
       showError("Connection failed. Ensure you are logged in.");
@@ -79,6 +82,7 @@
     });
 
     socket.on("gameState", (s) => {
+      console.log("[game] gameState received:", s ? { gameId: s.gameId, phase: s.phase, playersCount: s.players?.length } : "null");
       state = s;
       renderState();
     });
@@ -379,12 +383,33 @@
   });
 
   $("startBtnLobby").addEventListener("click", () => {
-    if (!socket || !user || !state) return;
+    console.log("[game] Start Game button clicked");
+    console.log("[game] User:", user ? { id: user.id, username: user.username } : "null");
+    console.log("[game] State:", state ? { gameId: state.gameId, creatorId: state.creatorId, phase: state.phase, playersCount: state.players?.length } : "null");
+    console.log("[game] Socket connected:", socket?.connected);
+    console.log("[game] Socket id:", socket?.id);
+    
+    if (!socket || !user || !state) {
+      console.error("[game] Cannot start: missing socket, user, or state");
+      showError("Cannot start game: missing information");
+      return;
+    }
+    
+    if (!socket.connected) {
+      console.error("[game] Cannot start: socket not connected");
+      showError("Connection lost. Please refresh the page.");
+      return;
+    }
+    
     const currentGameId = state.gameId;
+    console.log("[game] Emitting startMatch for gameId:", currentGameId);
     socket.emit("startMatch");
+    
     // Redirect to play page when match starts
     const redirectHandler = (newState) => {
+      console.log("[game] gameState received after startMatch:", newState ? { gameId: newState.gameId, phase: newState.phase } : "null");
       if (newState && newState.gameId === currentGameId && newState.phase !== "lobby") {
+        console.log("[game] Match started! Redirecting to play page");
         socket.off("gameState", redirectHandler);
         window.location.href = `/play/${newState.gameId}`;
       }

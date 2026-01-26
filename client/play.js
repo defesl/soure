@@ -50,13 +50,7 @@
     });
   }
 
-  $("logoutBtn").addEventListener("click", () => {
-    fetch("/api/logout", { method: "POST", credentials: "same-origin" })
-      .then(() => {
-        user = null;
-        window.location.href = "/login";
-      });
-  });
+  // Logout button removed from play page - only in Settings tab
 
   $("copyGameIdBtn").addEventListener("click", () => {
     if (gameId) {
