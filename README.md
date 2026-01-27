@@ -136,16 +136,28 @@ For production (e.g., Render, Railway, Heroku):
 - `npm run prisma:deploy` - Alias for `prisma:migrate:deploy`
 - `npm run prisma:studio` - Open Prisma Studio (database GUI)
 
-## Project Structure
+## How to run (checklist)
+
+1. `npm install`
+2. Copy `.env.example` to `.env` and set `DATABASE_URL` (Supabase PostgreSQL).
+3. `npm run prisma:generate` and `npm run prisma:migrate:dev` (or `prisma:migrate:deploy` in production).
+4. `npm run dev` or `npm start` → app at `http://localhost:3000`.
+
+On Render: set `DATABASE_URL` and `SESSION_SECRET`, run `npm run prisma:migrate:deploy`, start with `npm start`.
+
+## Project structure
 
 ```
-OnlineGame/
-├── client/          # Frontend (HTML, CSS, JS)
-├── server/          # Backend (Express, Socket.io)
-├── prisma/          # Database schema
-├── .env             # Environment variables (not committed)
-└── package.json     # Dependencies and scripts
+/
+├── client/          # Frontend (HTML, CSS, JS) — canonical
+├── server/          # Backend (Express, Socket.io) — canonical
+├── prisma/          # Schema + migrations
+├── docs/            # Guides (SETUP_AND_RUN.md, MIGRATION.md, etc.)
+├── .env.example     # Env template
+└── package.json     # Scripts: main = server/server.js
 ```
+
+See **docs/STRUCTURE.md** for a short checklist of where everything lives.
 
 ## Features
 

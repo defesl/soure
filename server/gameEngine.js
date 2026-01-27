@@ -375,7 +375,16 @@ class SoureGame {
     // Breach event (roll 7)
     if (total === 7) {
       this.handleBreach(current);
-      this.phase = "breach"; // Player must choose tile to block
+      // Auto-block a random resource tile (MVP: prevent game freeze)
+      const resourceTiles = this.board.tiles.filter(t => 
+        t.type !== "market" && t.id !== this.board.blockedTileId
+      );
+      if (resourceTiles.length > 0) {
+        const randomTile = resourceTiles[Math.floor(Math.random() * resourceTiles.length)];
+        this.board.blockedTileId = randomTile.id;
+        addToLog(this.eventLog, `${current.name} blocked tile ${randomTile.id} (${randomTile.type}).`);
+      }
+      this.phase = "main"; // Continue turn normally
       return { ok: true, roll: this.lastRoll, breach: true };
     }
 

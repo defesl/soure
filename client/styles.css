@@ -406,22 +406,26 @@ a:hover {
   text-align: center;
   max-width: 640px;
   padding: 48px 32px;
-  background: linear-gradient(135deg, var(--card) 0%, rgba(26, 26, 31, 0.95) 100%);
-  border: 1px solid var(--border);
-  border-radius: 24px;
-  box-shadow: var(--shadow-lg), var(--shadow-glow);
+  background: transparent;
 }
 .index-title {
-  font-size: 3.5rem;
-  font-weight: 800;
-  letter-spacing: 0.5px;
-  margin: 0 0 10px 0;
+  font-size: 4rem;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+  margin: 0 0 16px 0;
   color: var(--text);
+  background: linear-gradient(135deg, var(--text) 0%, rgba(139, 92, 246, 0.9) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 0 30px rgba(139, 92, 246, 0.3);
 }
 .index-subtitle {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.1rem;
   color: var(--muted);
+  font-weight: 400;
+  letter-spacing: 0.3px;
 }
 .index-chips {
   margin-top: 24px;
@@ -435,17 +439,25 @@ a:hover {
   font-size: 0.85rem;
   font-weight: 500;
   color: var(--text);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 100%);
-  border: 1px solid var(--border);
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(139, 92, 246, 0.08) 100%);
+  border: 1px solid rgba(139, 92, 246, 0.3);
   border-radius: 999px;
   transition: all 0.2s ease;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  font-family: inherit;
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
 }
 .chip:hover {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.08) 100%);
-  border-color: var(--border-hover);
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.25) 0%, rgba(139, 92, 246, 0.15) 100%);
+  border-color: rgba(139, 92, 246, 0.5);
   transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+}
+.chip:active {
+  transform: translateY(0);
 }
 
 .resource-chip {
@@ -588,6 +600,24 @@ a:hover {
   animation: diceRoll 0.6s ease-in-out;
 }
 
+.dice-slot .dice-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.dice-slot .dice-text {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.resource-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
 @keyframes diceRoll {
   0%, 100% { 
     transform: rotate(0deg) scale(1);
@@ -724,6 +754,9 @@ a:hover {
 }
 
 .inventory-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 8px 14px;
   font-size: 0.85rem;
   font-weight: 600;

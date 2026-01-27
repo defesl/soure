@@ -31,9 +31,13 @@
           <span>Settings</span>
         </a>
       </nav>
-      <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
-        <a class="btn" href="/register" style="width: 100%; margin-bottom: 8px;">Register</a>
-        <a class="btn btn-primary" href="/login" style="width: 100%;">Login</a>
+      <div id="authButtons" class="auth-section" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+        <a class="btn" href="/register" id="registerBtn" style="width: 100%; margin-bottom: 8px;">Register</a>
+        <a class="btn btn-primary" href="/login" id="loginBtn" style="width: 100%;">Login</a>
+      </div>
+      <div id="loggedInSection" class="auth-section hidden" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+        <div id="userInfo" style="margin-bottom: 12px; font-size: 0.85rem; color: var(--muted);"></div>
+        <a class="btn btn-primary" href="/game" id="enterGameBtn" style="width: 100%;">Enter Game</a>
       </div>
       <div class="index-hint">
         Create or join a game on the Game page. 1–4 players, resources, doubles, barbarians on 8.
@@ -43,15 +47,60 @@
       <div class="index-center">
         <h1 class="index-title">Soure</h1>
         <p class="index-subtitle">
-          An online strategy game with resources, diplomacy, and barbarians.
+          Roll dice. Lose friends. Gain empire.
         </p>
         <div class="index-chips">
-          <span class="chip">Clay · Flint · Sand · Water · Cattle · People</span>
-          <span class="chip">Doubles = Extra Turn</span>
-          <span class="chip">Barbarians on 8</span>
+          <button type="button" class="chip" id="chipResources">Clay · Flint · Sand · Water · Cattle · People</button>
+          <button type="button" class="chip" id="chipDoubles">Doubles = Extra Turn</button>
+          <button type="button" class="chip" id="chipBarbarians">Barbarians on 8</button>
         </div>
       </div>
     </main>
   </div>
+  <script>
+    (function () {
+      "use strict";
+      
+      const $ = (id) => document.getElementById(id);
+      
+      function showLoggedOut() {
+        const authButtons = $("authButtons");
+        const loggedInSection = $("loggedInSection");
+        if (authButtons) authButtons.classList.remove("hidden");
+        if (loggedInSection) loggedInSection.classList.add("hidden");
+      }
+      
+      function showLoggedIn(user) {
+        const authButtons = $("authButtons");
+        const loggedInSection = $("loggedInSection");
+        const userInfo = $("userInfo");
+        
+        if (authButtons) authButtons.classList.add("hidden");
+        if (loggedInSection) loggedInSection.classList.remove("hidden");
+        if (userInfo && user) {
+          userInfo.textContent = "Logged in as: " + user.username;
+        }
+      }
+      
+      function checkAuth() {
+        fetch("/api/me", { credentials: "same-origin" })
+          .then((r) => r.json())
+          .then((data) => {
+            if (data.ok && data.user) {
+              showLoggedIn(data.user);
+            } else {
+              showLoggedOut();
+            }
+          })
+          .catch((err) => {
+            console.error("[index] Auth check failed:", err);
+            showLoggedOut();
+          });
+      }
+      
+      // Check auth on page load
+      checkAuth();
+    })();
+  </script>
 </body>
 </html>

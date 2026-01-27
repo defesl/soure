@@ -10,6 +10,39 @@
 
   const $ = (id) => document.getElementById(id);
 
+  function diceImgSrc(v) {
+    return `/assets/dice/dice-${v}.png`;
+  }
+
+  function resourceIconSrc(type) {
+    return `/assets/resources/${type}.png`;
+  }
+
+  function updateDiceDisplay(d1, d2) {
+    const slots = [
+      { img: $("dice1Img"), text: $("dice1Text") },
+      { img: $("dice2Img"), text: $("dice2Text") }
+    ];
+    const vals = [d1, d2];
+    slots.forEach((s, i) => {
+      const v = vals[i];
+      if (!s.img || !s.text) return;
+      s.text.textContent = v != null ? String(v) : "?";
+      if (v != null && v >= 1 && v <= 6) {
+        s.img.src = diceImgSrc(v);
+        s.img.style.display = "";
+        s.text.style.display = "none";
+        s.img.onerror = () => {
+          s.img.style.display = "none";
+          s.text.style.display = "";
+        };
+      } else {
+        s.img.style.display = "none";
+        s.text.style.display = "";
+      }
+    });
+  }
+
   function showError(msg) {
     const el = $("errorEl");
     el.textContent = msg;
@@ -204,17 +237,14 @@
 
     socket.on("rollResult", (result) => {
       console.log("[game] rollResult received:", result);
-      // Trigger dice roll animation
       const dice1 = $("dice1");
       const dice2 = $("dice2");
       if (dice1 && dice2) {
         dice1.classList.add("rolling");
         dice2.classList.add("rolling");
-        // Update dice values during animation
         setTimeout(() => {
           if (result && result.roll) {
-            dice1.textContent = result.roll.d1;
-            dice2.textContent = result.roll.d2;
+            updateDiceDisplay(result.roll.d1, result.roll.d2);
           }
           setTimeout(() => {
             dice1.classList.remove("rolling");
@@ -327,10 +357,12 @@
       inventoryChips.innerHTML = "";
       RESOURCES.forEach((k) => {
         const count = myRes[k] || 0;
+        const name = k[0].toUpperCase() + k.slice(1);
         const chip = document.createElement("div");
         chip.className = "inventory-chip" + (count > 0 ? " has-resource" : "");
         chip.innerHTML = `
-          <span style="text-transform: capitalize;">${k}</span>
+          <img class="resource-icon" src="${resourceIconSrc(k)}" alt="" onerror="this.style.display='none'"/>
+          <span style="text-transform: capitalize;">${name}</span>
           <strong style="color: ${count > 0 ? 'var(--success)' : 'var(--muted)'};">${count}</strong>
         `;
         inventoryChips.appendChild(chip);
@@ -451,7 +483,9 @@
           ${RESOURCES.map(k => {
             const count = r[k] || 0;
             const name = k[0].toUpperCase() + k.slice(1);
-            return `<div class="resource-row ${count > 0 ? 'has' : ''}" style="display: flex; justify-content: space-between;">
+            const iconUrl = resourceIconSrc(k);
+            return `<div class="resource-row ${count > 0 ? 'has' : ''}" style="display: flex; align-items: center; justify-content: space-between; gap: 6px;">
+              <img class="resource-icon" src="${iconUrl}" alt="" onerror="this.style.display='none'"/>
               <span>${name}</span>
               <strong>${count}</strong>
             </div>`;
@@ -513,18 +547,16 @@
     }
 
     if (diceContainer) diceContainer.classList.remove("hidden");
-    
+
     const lr = state.lastRoll;
     if (lr && lr.d1 != null) {
-      if (dice1) dice1.textContent = lr.d1;
-      if (dice2) dice2.textContent = lr.d2;
+      updateDiceDisplay(lr.d1, lr.d2);
       if (diceResult) {
         diceResult.classList.remove("hidden");
         diceResult.textContent = `Roll: ${lr.d1} + ${lr.d2} = ${lr.total}${lr.isDouble ? " (Doubles!)" : ""}`;
       }
     } else {
-      if (dice1) dice1.textContent = "?";
-      if (dice2) dice2.textContent = "?";
+      updateDiceDisplay(null, null);
       if (diceResult) diceResult.classList.add("hidden");
     }
   }
@@ -533,12 +565,8 @@
     const breachPanel = $("breachPanel");
     const tileSelection = $("tileSelection");
     
-    if (!isBreach() || !isCurrentPlayer()) {
-      if (breachPanel) breachPanel.classList.add("hidden");
-      return;
-    }
-    
-    if (breachPanel) breachPanel.classList.remove("hidden");
+    // MVP: Blocking is automatic, always hide the panel
+    if (breachPanel) breachPanel.classList.add("hidden");
     if (!tileSelection) return;
     
     tileSelection.innerHTML = "";
@@ -688,11 +716,8 @@
       if (endTurnBtn) endTurnBtn.classList.add("hidden");
     }
     
-    if (breach && isCurrentPlayer()) {
-      if (blockTileBtn) blockTileBtn.classList.remove("hidden");
-    } else {
-      if (blockTileBtn) blockTileBtn.classList.add("hidden");
-    }
+    // MVP: Blocking is automatic, always hide the button
+    if (blockTileBtn) blockTileBtn.classList.add("hidden");
 
     // Resources grid is now in sidebar
 
