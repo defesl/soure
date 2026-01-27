@@ -9,8 +9,13 @@
   let gameId = null;
   let timerInterval = null;
   let matchStartTime = null;
+  const REJOIN_STORAGE_KEY = "rejoinGameId";
 
   const $ = (id) => document.getElementById(id);
+
+  function setRejoinGameId(id) {
+    if (id) sessionStorage.setItem(REJOIN_STORAGE_KEY, id);
+  }
 
   // Get gameId from URL
   function getGameIdFromUrl() {
@@ -120,6 +125,9 @@
     
     socket.on("disconnect", (reason) => {
       console.log("[play] Socket disconnected:", reason);
+      if (state && state.gameId) {
+        setRejoinGameId(state.gameId);
+      }
       showReconnectOverlay();
     });
     
@@ -432,4 +440,10 @@
       console.error("[play] Auth failed:", e);
       if (e.message !== "redirect") showError(e.message || "Auth failed");
     });
+
+  window.addEventListener("beforeunload", () => {
+    if (state && state.gameId) {
+      setRejoinGameId(state.gameId);
+    }
+  });
 })();

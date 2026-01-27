@@ -6,6 +6,7 @@
   let user = null;
   let socket = null;
   let state = null;
+  const REJOIN_STORAGE_KEY = "rejoinGameId";
 
   const $ = (id) => document.getElementById(id);
 
@@ -89,12 +90,17 @@
       .then((r) => r.json())
       .then((data) => {
         console.log("[game] /api/active-game response:", data);
-        // Only show rejoin if we're NOT in an active game
-        if (data.ok && data.gameId && (!inGame() || state?.phase === "lobby")) {
+        const storedRejoinId = getRejoinGameId();
+        const shouldShowRejoin = storedRejoinId && data.gameId && storedRejoinId === data.gameId;
+        // Only show rejoin if we're NOT in an active game and a rejoin is pending
+        if (data.ok && shouldShowRejoin && (!inGame() || state?.phase === "lobby")) {
           console.log("[game] Active game found:", data.gameId);
           showRejoinBanner(data.gameId);
         } else {
           hideRejoinBanner();
+          if (data.ok && !data.gameId) {
+            clearRejoinGameId();
+          }
         }
       })
       .catch((err) => {
@@ -121,6 +127,14 @@
     if (banner) {
       banner.classList.add("hidden");
     }
+  }
+
+  function getRejoinGameId() {
+    return sessionStorage.getItem(REJOIN_STORAGE_KEY);
+  }
+
+  function clearRejoinGameId() {
+    sessionStorage.removeItem(REJOIN_STORAGE_KEY);
   }
 
   $("logoutBtn").addEventListener("click", () => {
@@ -177,6 +191,7 @@
       } else {
         console.log("[game] Game created successfully, gameId:", r.gameId);
         // Hide rejoin banner when creating a new game
+        clearRejoinGameId();
         hideRejoinBanner();
         // The gameState event will handle the UI update
         showError(""); // Clear any errors
@@ -432,10 +447,14 @@
           <div>Pop: <strong>${pop.used}/${pop.max}</strong></div>
           <div>Def: <strong>${defense}</strong></div>
         </div>
-        <div class="player-resources-mini">
+        <div class="player-resources-column" style="margin-top: 6px; font-size: 0.85rem; line-height: 1.2;">
           ${RESOURCES.map(k => {
             const count = r[k] || 0;
-            return `<span class="resource-mini ${count > 0 ? 'has' : ''}">${k[0].toUpperCase()}:${count}</span>`;
+            const name = k[0].toUpperCase() + k.slice(1);
+            return `<div class="resource-row ${count > 0 ? 'has' : ''}" style="display: flex; justify-content: space-between;">
+              <span>${name}</span>
+              <strong>${count}</strong>
+            </div>`;
           }).join('')}
         </div>
       `;
