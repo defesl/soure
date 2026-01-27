@@ -80,11 +80,17 @@
 
   function checkActiveGame() {
     if (!user) return;
+    // Only check for active game if we're NOT already in a game
+    if (inGame() && state && state.phase !== "lobby") {
+      hideRejoinBanner();
+      return;
+    }
     fetch("/api/active-game", { credentials: "same-origin" })
       .then((r) => r.json())
       .then((data) => {
         console.log("[game] /api/active-game response:", data);
-        if (data.ok && data.gameId) {
+        // Only show rejoin if we're NOT in an active game
+        if (data.ok && data.gameId && (!inGame() || state?.phase === "lobby")) {
           console.log("[game] Active game found:", data.gameId);
           showRejoinBanner(data.gameId);
         } else {
@@ -158,7 +164,10 @@
       }
       state = s;
       console.log("[game] Updating state, calling renderState");
+      console.log("[game] Current player resources:", s.resources && user ? s.resources[user.id] : "N/A");
       renderState();
+      // Force re-render inventory to ensure resources are updated
+      renderInventory();
     });
 
     socket.on("createGameResult", (r) => {
@@ -167,8 +176,9 @@
         showError(r.error || "Create game failed");
       } else {
         console.log("[game] Game created successfully, gameId:", r.gameId);
+        // Hide rejoin banner when creating a new game
+        hideRejoinBanner();
         // The gameState event will handle the UI update
-        // But we can also show a success message
         showError(""); // Clear any errors
       }
     });
@@ -178,6 +188,7 @@
     });
 
     socket.on("rollResult", (result) => {
+      console.log("[game] rollResult received:", result);
       // Trigger dice roll animation
       const dice1 = $("dice1");
       const dice2 = $("dice2");
@@ -289,24 +300,27 @@
     const inventoryChips = $("inventoryChips");
 
     if (!inGame() || !user) {
-      inventoryBar.classList.add("hidden");
+      if (inventoryBar) inventoryBar.classList.add("hidden");
       return;
     }
 
-    inventoryBar.classList.remove("hidden");
+    if (inventoryBar) inventoryBar.classList.remove("hidden");
     const myRes = (state.resources && state.resources[user.id]) || {};
+    console.log("[game] Rendering inventory for user:", user.id, "resources:", myRes);
     
-    inventoryChips.innerHTML = "";
-    RESOURCES.forEach((k) => {
-      const count = myRes[k] || 0;
-      const chip = document.createElement("div");
-      chip.className = "inventory-chip" + (count > 0 ? " has-resource" : "");
-      chip.innerHTML = `
-        <span style="text-transform: capitalize;">${k}</span>
-        <strong style="color: ${count > 0 ? 'var(--success)' : 'var(--muted)'};">${count}</strong>
-      `;
-      inventoryChips.appendChild(chip);
-    });
+    if (inventoryChips) {
+      inventoryChips.innerHTML = "";
+      RESOURCES.forEach((k) => {
+        const count = myRes[k] || 0;
+        const chip = document.createElement("div");
+        chip.className = "inventory-chip" + (count > 0 ? " has-resource" : "");
+        chip.innerHTML = `
+          <span style="text-transform: capitalize;">${k}</span>
+          <strong style="color: ${count > 0 ? 'var(--success)' : 'var(--muted)'};">${count}</strong>
+        `;
+        inventoryChips.appendChild(chip);
+      });
+    }
   }
 
   function renderBoard() {
@@ -566,6 +580,11 @@
     const breachPanel = $("breachPanel");
     const buildingPanel = $("buildingPanel");
 
+    // Hide rejoin banner when in-game (not in lobby)
+    if (inGame() && state.phase !== "lobby") {
+      hideRejoinBanner();
+    }
+
     if (!inGame()) {
       console.log("[game] Not in game, showing create/join section");
       if (lobbySection) lobbySection.classList.remove("hidden");
@@ -577,6 +596,8 @@
       renderLobby();
       renderInventory();
       stopTimer();
+      // Check for active game when not in game
+      checkActiveGame();
       return;
     }
 
@@ -592,6 +613,8 @@
       renderLobby();
       renderInventory();
       stopTimer();
+      // Check for active game in lobby
+      checkActiveGame();
       return;
     }
 

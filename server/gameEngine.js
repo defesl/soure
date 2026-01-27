@@ -208,6 +208,15 @@ class SoureGame {
     // Generate board
     this.board = generateBoard();
     
+    // Give starting resources to all players (MVP)
+    this.players.forEach((player) => {
+      this.resources[player.id].stone += 1;
+      this.resources[player.id].water += 1;
+      this.resources[player.id].food += 1;
+      addToLog(this.eventLog, `${player.name} received starting resources: 1 stone, 1 water, 1 food.`);
+      console.log(`[gameEngine] Gave starting resources to ${player.name}`);
+    });
+    
     this.phase = "roll";
     this.currentTurnIndex = 0;
     this.matchStartTime = Date.now();
@@ -386,30 +395,50 @@ class SoureGame {
    * Distribute resources based on rolled number
    */
   distributeResources(rolledNumber) {
+    console.log(`[gameEngine] distributeResources called for roll: ${rolledNumber}`);
     const activatedTiles = this.board.tiles.filter(t => 
       t.number === rolledNumber && t.id !== this.board.blockedTileId
     );
     
+    console.log(`[gameEngine] Found ${activatedTiles.length} activated tiles for number ${rolledNumber}`);
+    
+    const current = this.players[this.currentTurnIndex];
+    let resourcesGranted = false;
+    
+    // First, check for buildings on activated tiles
     for (const tile of activatedTiles) {
-      for (const building of tile.buildings) {
-        const playerId = building.playerId;
-        let amount = 0;
-        
-        if (building.type === "outpost") {
-          amount = 1;
-        } else if (building.type === "citadel") {
-          amount = 2;
-        } else if (building.type === "capital") {
-          amount = 3;
-        }
-        
-        if (amount > 0 && tile.type !== "market") {
-          const resourceType = tile.type;
-          if (RESOURCE_TYPES.includes(resourceType)) {
-            this.resources[playerId][resourceType] += amount;
-            const player = this.players.find(p => p.id === playerId);
-            addToLog(this.eventLog, `${player?.name} received ${amount} ${resourceType} from ${building.type} on tile ${tile.id}.`);
+      if (tile.buildings && tile.buildings.length > 0) {
+        for (const building of tile.buildings) {
+          const playerId = building.playerId;
+          let amount = 0;
+          
+          if (building.type === "outpost") {
+            amount = 1;
+          } else if (building.type === "citadel") {
+            amount = 2;
+          } else if (building.type === "capital") {
+            amount = 3;
           }
+          
+          if (amount > 0 && tile.type !== "market") {
+            const resourceType = tile.type;
+            if (RESOURCE_TYPES.includes(resourceType)) {
+              this.resources[playerId][resourceType] += amount;
+              const player = this.players.find(p => p.id === playerId);
+              addToLog(this.eventLog, `${player?.name} received ${amount} ${resourceType} from ${building.type} on tile ${tile.id}.`);
+              console.log(`[gameEngine] ${player?.name} received ${amount} ${resourceType} from building`);
+              resourcesGranted = true;
+            }
+          }
+        }
+      } else {
+        // MVP: If no buildings, grant current player +1 resource from matching tile (temporary for testing)
+        if (tile.type !== "market" && RESOURCE_TYPES.includes(tile.type)) {
+          const resourceType = tile.type;
+          this.resources[current.id][resourceType] += 1;
+          addToLog(this.eventLog, `${current.name} received 1 ${resourceType} from tile ${tile.id} (no building yet).`);
+          console.log(`[gameEngine] ${current.name} received 1 ${resourceType} from tile ${tile.id} (MVP: no building)`);
+          resourcesGranted = true;
         }
       }
     }
@@ -420,9 +449,14 @@ class SoureGame {
     );
     
     if (peopleTiles.length > 0) {
-      const current = this.players[this.currentTurnIndex];
       this.resources[current.id].people += 1;
       addToLog(this.eventLog, `${current.name} received 1 people from People tile (rolled ${rolledNumber}).`);
+      console.log(`[gameEngine] ${current.name} received 1 people from People tile`);
+      resourcesGranted = true;
+    }
+    
+    if (!resourcesGranted) {
+      console.log(`[gameEngine] No resources granted for roll ${rolledNumber} (no matching tiles or all blocked)`);
     }
   }
 
