@@ -71,20 +71,50 @@
     </section>
 
     <section class="game-section hidden" id="gameInfoSection">
-      <h3>Game</h3>
-      <p>Game ID: <strong id="gameIdEl">—</strong></p>
-      <p>Phase: <strong id="phaseEl">—</strong> · Current: <strong id="currentPlayerEl">—</strong></p>
-      
-      <!-- Centered Dice UI -->
-      <div id="diceContainer" class="dice-container hidden" style="margin: 24px 0;">
-        <div class="dice-card" id="dice1">?</div>
-        <div class="dice-card" id="dice2">?</div>
+      <div class="game-layout-main">
+        <!-- Left: Player List + Stats -->
+        <aside class="game-sidebar">
+          <h3>Players</h3>
+          <div id="playerList" class="player-list-detailed"></div>
+        </aside>
+
+        <!-- Center: Board -->
+        <div class="game-board-container">
+          <div id="hexBoard" class="hex-board"></div>
+        </div>
+
+        <!-- Right: Dice + Actions -->
+        <aside class="game-actions-panel">
+          <div class="dice-panel-inline">
+            <div id="diceContainer" class="dice-container-inline">
+              <div class="dice-card" id="dice1">?</div>
+              <div class="dice-card" id="dice2">?</div>
+            </div>
+            <div id="diceResult" class="dice-result-inline hidden"></div>
+            <div class="game-actions-inline">
+              <button type="button" class="btn btn-primary hidden" id="rollBtn">Roll Dice</button>
+              <button type="button" class="btn hidden" id="endTurnBtn">End Turn</button>
+              <button type="button" class="btn hidden" id="blockTileBtn">Block Tile</button>
+            </div>
+          </div>
+        </aside>
       </div>
-      <div id="diceResult" class="dice-result hidden" style="text-align: center; margin-top: 12px;"></div>
-      
-      <div class="game-actions game-actions-mt">
-        <button type="button" class="btn btn-primary hidden" id="rollBtn">Roll Dice</button>
-        <button type="button" class="btn hidden" id="endTurnBtn">End Turn</button>
+
+      <!-- Breach Phase UI -->
+      <div id="breachPanel" class="breach-panel hidden">
+        <h3>Breach! Choose a tile to block:</h3>
+        <div id="tileSelection" class="tile-selection"></div>
+      </div>
+
+      <!-- Building Placement UI -->
+      <div id="buildingPanel" class="building-panel hidden">
+        <h3>Place Building</h3>
+        <div class="building-options">
+          <button type="button" class="btn" data-building="outpost">Outpost (1 stone, 1 water) - 1 DP</button>
+          <button type="button" class="btn" data-building="bastion">Bastion (1 iron, 1 food) - +1 Defense</button>
+        </div>
+        <p class="building-hint">Select a building type, then click a tile on the board to place it</p>
+        <p class="building-hint" style="font-size: 0.75rem; margin-top: 4px;">Upgrades: Outpost → Citadel (2 stone, 2 food) → Capital (3 stone, 3 iron, 2 gold)</p>
       </div>
     </section>
 
@@ -98,28 +128,6 @@
       <div class="event-log" id="eventLog"></div>
     </section>
 
-    <section class="game-section offer-panel hidden" id="offerSection">
-      <h3>Barbarians — Trade offer</h3>
-      <p id="offerDesc"></p>
-      <div id="offerCurrent" class="hidden">
-        <label>Request resource:</label>
-        <select id="offerRequest" class="input">
-          <option value="any">Any</option>
-          <option value="clay">Clay</option>
-          <option value="flint">Flint</option>
-          <option value="sand">Sand</option>
-          <option value="water">Water</option>
-          <option value="cattle">Cattle</option>
-          <option value="people">People</option>
-        </select>
-        <button type="button" class="btn" id="createOfferBtn">Create offer</button>
-        <button type="button" class="btn" id="placeCampBtn">Place in camp</button>
-      </div>
-      <div id="offerOthers" class="hidden">
-        <p>Accept by giving 1 resource:</p>
-        <div id="acceptButtons"></div>
-      </div>
-    </section>
 
         <div class="error-msg hidden" id="errorEl" role="alert"></div>
       </div>

@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const RESOURCES = ["clay", "flint", "sand", "water", "cattle", "people"];
+  const RESOURCES = ["stone", "iron", "food", "water", "gold"];
 
   let user = null;
   let socket = null;
@@ -201,12 +201,8 @@
     return inGame() && state.creatorId === user.id;
   }
 
-  function isBarbarians() {
-    return state && state.phase === "barbarians";
-  }
-
-  function hasActiveOffer() {
-    return state && state.activeOffer;
+  function isBreach() {
+    return state && state.phase === "breach";
   }
 
   function getInitials(username) {
@@ -290,6 +286,118 @@
     });
   }
 
+  function renderBoard() {
+    const boardEl = $("hexBoard");
+    if (!boardEl || !state.board) return;
+    
+    boardEl.innerHTML = "";
+    
+    state.board.tiles.forEach((tile) => {
+      const hex = document.createElement("div");
+      hex.className = "hex-tile";
+      hex.dataset.tileId = tile.id;
+      
+      if (tile.id === state.board.blockedTileId) {
+        hex.classList.add("blocked");
+      }
+      
+      // Tile type icon/color
+      const typeColors = {
+        stone: "#8b8ba3",
+        iron: "#6b7280",
+        food: "#10b981",
+        water: "#3b82f6",
+        gold: "#f59e0b",
+        market: "#8b5cf6"
+      };
+      
+      hex.style.backgroundColor = typeColors[tile.type] || "#1a1a1f";
+      
+      // Tile type label
+      const typeLabel = document.createElement("div");
+      typeLabel.className = "hex-type";
+      typeLabel.textContent = tile.type === "market" ? "Market" : tile.type[0].toUpperCase() + tile.type.slice(1);
+      hex.appendChild(typeLabel);
+      
+      // Number token
+      if (tile.number !== null) {
+        const numberEl = document.createElement("div");
+        numberEl.className = "hex-number";
+        numberEl.textContent = tile.number;
+        hex.appendChild(numberEl);
+      }
+      
+      // Buildings
+      const buildingsEl = document.createElement("div");
+      buildingsEl.className = "hex-buildings";
+      tile.buildings.forEach((building) => {
+        const buildingEl = document.createElement("div");
+        buildingEl.className = `building building-${building.type}`;
+        buildingEl.title = building.type;
+        const player = state.players.find(p => p.id === building.playerId);
+        if (player) {
+          buildingEl.textContent = getInitials(player.name);
+        }
+        buildingsEl.appendChild(buildingEl);
+      });
+      hex.appendChild(buildingsEl);
+      
+      // Click handler for building placement
+      if (state.phase === "main" && isCurrentPlayer() && selectedBuildingType) {
+        hex.classList.add("clickable");
+        hex.addEventListener("click", () => {
+          socket.emit("placeBuilding", { tileId: tile.id, buildingType: selectedBuildingType });
+          selectedBuildingType = null;
+          renderBuildingPanel();
+        });
+      }
+      
+      boardEl.appendChild(hex);
+    });
+  }
+
+  let selectedBuildingType = null;
+
+  function renderPlayers() {
+    const playerList = $("playerList");
+    if (!playerList) return;
+    
+    playerList.innerHTML = "";
+    
+    (state.players || []).forEach((p) => {
+      const playerEl = document.createElement("div");
+      playerEl.className = "player-item-detailed";
+      if (p.id === state.currentTurnPlayerId) {
+        playerEl.classList.add("current");
+      }
+      
+      const r = (state.resources && state.resources[p.id]) || {};
+      const pop = p.population || { max: 3, used: 0 };
+      const dp = p.dominionPoints || 0;
+      const defense = p.defenseLevel || 0;
+      
+      playerEl.innerHTML = `
+        <div class="player-header">
+          <strong>${escapeHtml(p.name)}</strong>
+          ${p.id === state.currentTurnPlayerId ? '<span class="current-badge">Current</span>' : ''}
+        </div>
+        <div class="player-stats">
+          <div>DP: <strong>${dp}</strong></div>
+          <div>Pop: <strong>${pop.used}/${pop.max}</strong></div>
+          <div>Def: <strong>${defense}</strong></div>
+        </div>
+        <div class="player-resources-mini">
+          ${RESOURCES.map(k => {
+            const count = r[k] || 0;
+            return `<span class="resource-mini ${count > 0 ? 'has' : ''}">${k[0].toUpperCase()}:${count}</span>`;
+          }).join('')}
+        </div>
+      `;
+      
+      playerList.appendChild(playerEl);
+    });
+  }
+
   function renderDice() {
     const diceContainer = $("diceContainer");
     const dice1 = $("dice1");
@@ -297,24 +405,86 @@
     const diceResult = $("diceResult");
 
     if (!inGame() || state.phase === "lobby") {
-      diceContainer.classList.add("hidden");
-      diceResult.classList.add("hidden");
+      if (diceContainer) diceContainer.classList.add("hidden");
+      if (diceResult) diceResult.classList.add("hidden");
       return;
     }
 
-    diceContainer.classList.remove("hidden");
+    if (diceContainer) diceContainer.classList.remove("hidden");
     
     const lr = state.lastRoll;
     if (lr && lr.d1 != null) {
-      dice1.textContent = lr.d1;
-      dice2.textContent = lr.d2;
-      diceResult.classList.remove("hidden");
-      diceResult.textContent = `Last roll: ${lr.d1} + ${lr.d2} = ${lr.total}${lr.isDouble ? " (Doubles!)" : ""}`;
+      if (dice1) dice1.textContent = lr.d1;
+      if (dice2) dice2.textContent = lr.d2;
+      if (diceResult) {
+        diceResult.classList.remove("hidden");
+        diceResult.textContent = `Roll: ${lr.d1} + ${lr.d2} = ${lr.total}${lr.isDouble ? " (Doubles!)" : ""}`;
+      }
     } else {
-      dice1.textContent = "?";
-      dice2.textContent = "?";
-      diceResult.classList.add("hidden");
+      if (dice1) dice1.textContent = "?";
+      if (dice2) dice2.textContent = "?";
+      if (diceResult) diceResult.classList.add("hidden");
     }
+  }
+
+  function renderBreachPanel() {
+    const breachPanel = $("breachPanel");
+    const tileSelection = $("tileSelection");
+    
+    if (!isBreach() || !isCurrentPlayer()) {
+      if (breachPanel) breachPanel.classList.add("hidden");
+      return;
+    }
+    
+    if (breachPanel) breachPanel.classList.remove("hidden");
+    if (!tileSelection) return;
+    
+    tileSelection.innerHTML = "";
+    
+    state.board.tiles.forEach((tile) => {
+      if (tile.type === "market") return; // Can't block market
+      
+      const btn = document.createElement("button");
+      btn.className = "btn tile-select-btn";
+      btn.textContent = `Tile ${tile.id} (${tile.type}${tile.number ? `, ${tile.number}` : ''})`;
+      if (tile.id === state.board.blockedTileId) {
+        btn.disabled = true;
+        btn.textContent += " (Already blocked)";
+      }
+      btn.addEventListener("click", () => {
+        socket.emit("blockTile", tile.id);
+      });
+      tileSelection.appendChild(btn);
+    });
+  }
+
+  function renderBuildingPanel() {
+    const buildingPanel = $("buildingPanel");
+    if (!buildingPanel) return;
+    
+    if (state.phase !== "main" || !isCurrentPlayer()) {
+      buildingPanel.classList.add("hidden");
+      return;
+    }
+    
+    buildingPanel.classList.remove("hidden");
+    
+    // Update button states
+    const buttons = buildingPanel.querySelectorAll("[data-building]");
+    buttons.forEach(btn => {
+      btn.classList.remove("selected");
+      if (btn.dataset.building === selectedBuildingType) {
+        btn.classList.add("selected");
+      }
+      btn.onclick = () => {
+        if (selectedBuildingType === btn.dataset.building) {
+          selectedBuildingType = null;
+        } else {
+          selectedBuildingType = btn.dataset.building;
+        }
+        renderBuildingPanel();
+      };
+    });
   }
 
   function renderState() {
@@ -323,14 +493,16 @@
     const info = $("gameInfoSection");
     const res = $("resourcesSection");
     const log = $("logSection");
-    const offer = $("offerSection");
     const lobbySection = $("lobbySection");
+    const breachPanel = $("breachPanel");
+    const buildingPanel = $("buildingPanel");
 
     if (!inGame()) {
       info.classList.add("hidden");
       res.classList.add("hidden");
       log.classList.add("hidden");
-      offer.classList.add("hidden");
+      if (breachPanel) breachPanel.classList.add("hidden");
+      if (buildingPanel) buildingPanel.classList.add("hidden");
       renderLobby();
       renderInventory();
       return;
@@ -341,7 +513,8 @@
       info.classList.add("hidden");
       res.classList.add("hidden");
       log.classList.add("hidden");
-      offer.classList.add("hidden");
+      if (breachPanel) breachPanel.classList.add("hidden");
+      if (buildingPanel) buildingPanel.classList.add("hidden");
       renderLobby();
       renderInventory();
       return;
@@ -352,40 +525,31 @@
     res.classList.remove("hidden");
     log.classList.remove("hidden");
     renderLobby(); // This will hide lobby elements
+    renderBoard();
+    renderPlayers();
     renderDice();
     renderInventory();
+    renderBreachPanel();
+    renderBuildingPanel();
 
-    $("gameIdEl").textContent = state.gameId;
-    $("phaseEl").textContent = state.phase;
-    $("currentPlayerEl").textContent = state.players.find((p) => p.id === state.currentTurnPlayerId)?.name ?? "—";
+    // Game info removed - now in sidebar
 
     const roll = state.phase === "roll";
     const main = state.phase === "main";
+    const breach = state.phase === "breach";
 
     const rollBtn = $("rollBtn");
     const endTurnBtn = $("endTurnBtn");
+    const blockTileBtn = $("blockTileBtn");
+    
     if (roll && isCurrentPlayer()) rollBtn.classList.remove("hidden");
     else rollBtn.classList.add("hidden");
     if (main && isCurrentPlayer()) endTurnBtn.classList.remove("hidden");
     else endTurnBtn.classList.add("hidden");
+    if (breach && isCurrentPlayer()) blockTileBtn.classList.remove("hidden");
+    else blockTileBtn.classList.add("hidden");
 
-    const grid = $("resourcesGrid");
-    grid.innerHTML = "";
-    (state.players || []).forEach((p) => {
-      const r = (state.resources && state.resources[p.id]) || {};
-      const isCurrent = p.id === state.currentTurnPlayerId;
-      const div = document.createElement("div");
-      div.className = "player-card" + (isCurrent ? " current" : "");
-      let str = "<strong style='display: block; margin-bottom: 12px; font-size: 1.1rem;'>" + escapeHtml(p.name) + "</strong><div style='display: flex; flex-wrap: wrap; gap: 10px;'>";
-      RESOURCES.forEach((k) => {
-        const count = r[k] || 0;
-        const chipClass = count > 0 ? "resource-chip success" : "resource-chip";
-        str += `<div class="${chipClass}"><span style='text-transform: capitalize;'>${k}</span><strong style='font-size: 1.2rem; color: var(--accent);'>${count}</strong></div>`;
-      });
-      str += "</div>";
-      div.innerHTML = str;
-      grid.appendChild(div);
-    });
+    // Resources grid is now in sidebar
 
     const logEl = $("eventLog");
     logEl.innerHTML = "";
@@ -396,39 +560,7 @@
     });
     logEl.scrollTop = logEl.scrollHeight;
 
-    if (isBarbarians()) {
-      offer.classList.remove("hidden");
-      const oc = $("offerCurrent");
-      const oo = $("offerOthers");
-      if (isCurrentPlayer()) {
-        oc.classList.remove("hidden");
-        oo.classList.add("hidden");
-      } else {
-        oc.classList.add("hidden");
-        oo.classList.toggle("hidden", !hasActiveOffer());
-      }
-      $("offerDesc").textContent = hasActiveOffer()
-        ? "Current player offers: place barbarians in camp in exchange for 1 " + (state.activeOffer.request === "any" ? "resource" : state.activeOffer.request) + "."
-        : "Barbarians activated. Current player can create an offer or place in camp.";
-
-      const acceptDiv = $("acceptButtons");
-      acceptDiv.innerHTML = "";
-      if (!isCurrentPlayer() && hasActiveOffer()) {
-        const myRes = (state.resources && state.resources[user.id]) || {};
-        const want = state.activeOffer.request;
-        RESOURCES.forEach((k) => {
-          if ((want === "any" || want === k) && (myRes[k] || 0) >= 1) {
-            const b = document.createElement("button");
-            b.className = "btn";
-            b.textContent = "Give 1 " + k;
-            b.addEventListener("click", () => socket.emit("acceptOffer", k));
-            acceptDiv.appendChild(b);
-          }
-        });
-      }
-    } else {
-      offer.classList.add("hidden");
-    }
+    // Old barbarians/offer logic removed
   }
 
   function escapeHtml(s) {
@@ -471,24 +603,7 @@
     const currentGameId = state.gameId;
     console.log("[game] Emitting startMatch for gameId:", currentGameId);
     socket.emit("startMatch");
-    
-    // Redirect to play page when match starts
-    const redirectHandler = (newState) => {
-      console.log("[game] gameState received after startMatch:", newState ? { gameId: newState.gameId, phase: newState.phase } : "null");
-      if (newState && newState.gameId === currentGameId && newState.phase !== "lobby") {
-        console.log("[game] Match started! Redirecting to play page");
-        socket.off("gameState", redirectHandler);
-        window.location.href = `/play/${newState.gameId}`;
-      }
-    };
-    socket.on("gameState", redirectHandler);
-    // Fallback: check current state after a short delay
-    setTimeout(() => {
-      if (state && state.phase !== "lobby" && state.gameId) {
-        socket.off("gameState", redirectHandler);
-        window.location.href = `/play/${state.gameId}`;
-      }
-    }, 500);
+    // Game stays on /game page - no redirect needed
   });
 
   $("rollBtn").addEventListener("click", () => {
@@ -501,15 +616,9 @@
     socket.emit("endTurn");
   });
 
-  $("createOfferBtn").addEventListener("click", () => {
-    if (!socket || !user) return;
-    const request = $("offerRequest").value || "any";
-    socket.emit("createOffer", { request });
-  });
-
-  $("placeCampBtn").addEventListener("click", () => {
-    if (!socket || !user) return;
-    socket.emit("placeInCamp");
+  $("blockTileBtn")?.addEventListener("click", () => {
+    // Block tile button triggers breach panel
+    renderBreachPanel();
   });
 
   initAuth()

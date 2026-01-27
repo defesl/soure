@@ -287,6 +287,57 @@ io.on("connection", (socket) => {
     socket.emit("rollResult", result);
   });
 
+  socket.on("placeBuilding", (payload) => {
+    const gameId = [...socket.rooms].find((r) => r.startsWith("game:"));
+    if (!gameId) {
+      socket.emit("error", { message: "You are not in a game" });
+      return;
+    }
+    const g = gameId.replace("game:", "");
+    const validation = validateGameMembership(socket, g, userId);
+    if (!validation.ok) {
+      socket.emit("error", { message: validation.error });
+      return;
+    }
+    const { entry } = validation;
+    const { tileId, buildingType } = payload || {};
+    if (typeof tileId !== "number" || !buildingType) {
+      socket.emit("error", { message: "Invalid building placement data" });
+      return;
+    }
+    const result = entry.game.placeBuilding(userId, tileId, buildingType);
+    if (!result.ok) {
+      socket.emit("error", { message: result.error });
+      return;
+    }
+    broadcastGameState(g);
+  });
+
+  socket.on("blockTile", (tileId) => {
+    const gameId = [...socket.rooms].find((r) => r.startsWith("game:"));
+    if (!gameId) {
+      socket.emit("error", { message: "You are not in a game" });
+      return;
+    }
+    const g = gameId.replace("game:", "");
+    const validation = validateGameMembership(socket, g, userId);
+    if (!validation.ok) {
+      socket.emit("error", { message: validation.error });
+      return;
+    }
+    const { entry } = validation;
+    if (typeof tileId !== "number") {
+      socket.emit("error", { message: "Invalid tile ID" });
+      return;
+    }
+    const result = entry.game.blockTile(userId, tileId);
+    if (!result.ok) {
+      socket.emit("error", { message: result.error });
+      return;
+    }
+    broadcastGameState(g);
+  });
+
   socket.on("createOffer", (payload) => {
     const gameId = [...socket.rooms].find((r) => r.startsWith("game:"));
     if (!gameId) {

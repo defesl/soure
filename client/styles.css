@@ -997,6 +997,299 @@ html, body {
   margin: 0 0 16px 0;
 }
 
+/* Board Game Layout */
+.game-layout-main {
+  display: grid;
+  grid-template-columns: 200px 1fr 200px;
+  gap: 20px;
+  padding: 20px;
+  min-height: 600px;
+}
+
+.game-sidebar {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.player-list-detailed {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.player-item-detailed {
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.player-item-detailed.current {
+  border-color: var(--accent);
+  background: rgba(139, 92, 246, 0.1);
+}
+
+.player-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.current-badge {
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  background: var(--accent);
+  border-radius: 4px;
+  color: var(--text);
+}
+
+.player-stats {
+  display: flex;
+  gap: 12px;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.player-resources-mini {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 0.75rem;
+}
+
+.resource-mini {
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.resource-mini.has {
+  background: rgba(16, 185, 129, 0.2);
+  color: var(--success);
+}
+
+.game-board-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  overflow: auto;
+}
+
+.hex-board {
+  display: grid;
+  grid-template-columns: repeat(5, 80px);
+  grid-template-rows: repeat(5, 80px);
+  gap: 2px;
+  max-width: 600px;
+  max-height: 600px;
+  justify-content: center;
+  align-content: center;
+  /* Hex pattern: rows 0,1,2,3,4 have different column offsets */
+  grid-template-areas:
+    ". . tile0 . ."
+    ". tile1 tile2 tile3 ."
+    "tile4 tile5 tile6 tile7 tile8"
+    ". tile9 tile10 tile11 tile12"
+    ". . tile13 tile14 ."
+    ". tile15 tile16 tile17 ."
+    ". . tile18 . .";
+}
+
+/* Simplified: use a flex wrap layout for 19 tiles */
+.hex-board {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 600px;
+  max-height: 600px;
+  justify-content: center;
+  align-content: center;
+}
+
+.hex-tile {
+  width: 80px;
+  height: 80px;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: default;
+  transition: all 0.2s ease;
+  font-size: 0.7rem;
+  text-align: center;
+  padding: 4px;
+}
+
+.hex-tile.clickable {
+  cursor: pointer;
+}
+
+.hex-tile.clickable:hover {
+  border-color: var(--accent);
+  transform: scale(1.05);
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.3);
+}
+
+.hex-tile.blocked {
+  opacity: 0.5;
+  filter: grayscale(50%);
+  border-color: var(--danger);
+}
+
+.hex-type {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  color: var(--text);
+  margin-top: 2px;
+}
+
+.hex-number {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: var(--bg);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 0.75rem;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+}
+
+.hex-buildings {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  right: 4px;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.building {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 1px solid var(--accent-dark);
+  font-size: 0.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.building-citadel {
+  background: var(--success);
+  border-color: var(--success-dark);
+}
+
+.building-capital {
+  background: var(--danger);
+  border-color: var(--danger-dark);
+}
+
+.building-bastion {
+  background: #f59e0b;
+  border-color: #d97706;
+}
+
+.game-actions-panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.dice-panel-inline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.dice-container-inline {
+  display: flex;
+  gap: 12px;
+}
+
+.dice-result-inline {
+  font-size: 0.9rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.game-actions-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.breach-panel {
+  margin-top: 20px;
+  padding: 20px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid var(--danger);
+  border-radius: 12px;
+}
+
+.tile-selection {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.tile-select-btn {
+  font-size: 0.85rem;
+}
+
+.building-panel {
+  margin-top: 20px;
+  padding: 20px;
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+}
+
+.building-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.building-options .btn.selected {
+  background: var(--accent);
+  color: var(--text);
+}
+
+.building-hint {
+  margin-top: 12px;
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
 /* Mobile */
 @media (max-width: 780px) {
   .index-layout {
@@ -1072,5 +1365,19 @@ html, body {
   .reconnect-content {
     padding: 24px;
     margin: 16px;
+  }
+  .game-layout-main {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .game-sidebar {
+    order: -1;
+  }
+  .hex-board {
+    max-width: 100%;
+    max-height: 400px;
+  }
+  .game-actions-panel {
+    order: 1;
   }
 }

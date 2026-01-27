@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const RESOURCES = ["clay", "flint", "sand", "water", "cattle", "people"];
+  const RESOURCES = ["stone", "iron", "food", "water", "gold"];
 
   let user = null;
   let socket = null;

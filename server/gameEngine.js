@@ -1,10 +1,37 @@
 "use strict";
 
-const RESOURCE_TYPES = ["clay", "flint", "sand", "water", "cattle", "people"];
-const OFFER_TIMEOUT_MS = 30 * 1000;
+const RESOURCE_TYPES = ["stone", "iron", "food", "water", "gold"];
+const BUILDING_TYPES = ["outpost", "citadel", "capital", "bastion"];
+
+// Number tokens for tiles (excluding CentralMarket)
+const NUMBER_TOKENS = [2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12];
+
+// Hex board layout (19 tiles in a hex pattern)
+// Adjacency: each tile has neighbors (for 6/8 rule)
+const HEX_ADJACENCY = [
+  [1, 3, 4],           // 0
+  [0, 2, 4, 5],        // 1
+  [1, 5, 6],           // 2
+  [0, 4, 7, 8],        // 3
+  [0, 1, 3, 5, 8, 9],  // 4 (center)
+  [1, 2, 4, 6, 9, 10], // 5
+  [2, 5, 10, 11],      // 6
+  [3, 8, 12, 13],      // 7
+  [3, 4, 7, 9, 13, 14], // 8
+  [4, 5, 8, 10, 14, 15], // 9
+  [5, 6, 9, 11, 15, 16], // 10
+  [6, 10, 16, 17],     // 11
+  [7, 13, 18],         // 12
+  [7, 8, 12, 14, 18],  // 13
+  [8, 9, 13, 15, 18],  // 14
+  [9, 10, 14, 16, 18], // 15
+  [10, 11, 15, 17, 18], // 16
+  [11, 16, 18],        // 17
+  [12, 13, 14, 15, 16, 17] // 18 (CentralMarket)
+];
 
 function emptyResources() {
-  return { clay: 0, flint: 0, sand: 0, water: 0, cattle: 0, people: 0 };
+  return { stone: 0, iron: 0, food: 0, water: 0, gold: 0 };
 }
 
 function totalResources(res) {
@@ -31,6 +58,99 @@ function addToLog(log, msg) {
   if (log.length > 50) log.shift();
 }
 
+function shuffleArray(array) {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
+function generateBoard() {
+  // Tile distribution
+  const tileTypes = [
+    ...Array(5).fill("stone"),
+    ...Array(4).fill("food"),
+    ...Array(3).fill("water"),
+    ...Array(3).fill("iron"),
+    ...Array(3).fill("gold"),
+    "market" // CentralMarket
+  ];
+  
+  // Shuffle tile types
+  const shuffledTypes = shuffleArray(tileTypes);
+  
+  // Create tiles
+  const tiles = shuffledTypes.map((type, id) => ({
+    id,
+    type,
+    number: null,
+    buildings: [] // [{ playerId, type }]
+  }));
+  
+  // Find market tile and set number to null
+  const marketTile = tiles.find(t => t.type === "market");
+  if (marketTile) {
+    marketTile.number = null;
+  }
+  
+  // Assign numbers to non-market tiles
+  const numberTokens = shuffleArray(NUMBER_TOKENS);
+  let tokenIndex = 0;
+  
+  // Assign numbers ensuring 6 and 8 are not adjacent
+  const tilesToNumber = tiles.filter(t => t.type !== "market");
+  let attempts = 0;
+  const maxAttempts = 100;
+  
+  while (attempts < maxAttempts) {
+    const shuffledNumbers = shuffleArray(NUMBER_TOKENS);
+    let valid = true;
+    
+    for (let i = 0; i < tilesToNumber.length; i++) {
+      tilesToNumber[i].number = shuffledNumbers[i];
+    }
+    
+    // Check 6/8 adjacency rule
+    for (let i = 0; i < tiles.length; i++) {
+      const tile = tiles[i];
+      if (tile.number === 6 || tile.number === 8) {
+        const neighbors = HEX_ADJACENCY[i] || [];
+        for (const neighborId of neighbors) {
+          const neighbor = tiles[neighborId];
+          if (neighbor && (neighbor.number === 6 || neighbor.number === 8)) {
+            valid = false;
+            break;
+          }
+        }
+        if (!valid) break;
+      }
+    }
+    
+    if (valid) {
+      break;
+    }
+    
+    attempts++;
+    // Reset numbers
+    tilesToNumber.forEach(t => t.number = null);
+  }
+  
+  // If still invalid after max attempts, assign anyway (fallback)
+  if (attempts >= maxAttempts) {
+    const shuffledNumbers = shuffleArray(NUMBER_TOKENS);
+    for (let i = 0; i < tilesToNumber.length; i++) {
+      tilesToNumber[i].number = shuffledNumbers[i];
+    }
+  }
+  
+  return {
+    tiles,
+    blockedTileId: null
+  };
+}
+
 class SoureGame {
   /**
    * @param {string} gameId
@@ -42,16 +162,17 @@ class SoureGame {
     this.maxPlayers = opts.maxPlayers ?? 4;
     this.players = [];
     this.currentTurnIndex = 0;
-    this.resources = {};
+    this.resources = {}; // playerId -> { stone, iron, food, water, gold }
+    this.population = {}; // playerId -> { max: 3, used: 0 }
+    this.dominionPoints = {}; // playerId -> number
+    this.defenseLevel = {}; // playerId -> number
     this.phase = "lobby";
     this.lastRoll = null;
     this.extraTurn = false;
     this.eventLog = [];
-    this.activeOffer = null;
     this.creatorId = null;
     this.matchStartTime = null;
-    /** @type {ReturnType<typeof setTimeout> | null} */
-    this._offerTimer = null;
+    this.board = null; // Will be generated on startMatch
   }
 
   /**
@@ -62,7 +183,9 @@ class SoureGame {
     if (this.players.some((p) => p.id === id)) return;
     this.players.push({ id, name });
     this.resources[id] = emptyResources();
-    if (!this.creatorId) this.creatorId = id;
+    this.population[id] = { max: 3, used: 0 };
+    this.dominionPoints[id] = 0;
+    this.defenseLevel[id] = 0;
     addToLog(this.eventLog, `${name} joined the game.`);
   }
 
@@ -80,17 +203,147 @@ class SoureGame {
     if (this.players.length < this.minPlayers) {
       return { ok: false, error: `Need at least ${this.minPlayers} players to start` };
     }
+    
+    // Generate board
+    this.board = generateBoard();
+    
     this.phase = "roll";
     this.currentTurnIndex = 0;
     this.matchStartTime = Date.now();
     const current = this.players[this.currentTurnIndex];
-    addToLog(this.eventLog, `Match started! ${current.name} goes first.`);
+    addToLog(this.eventLog, `Match started! Board generated. ${current.name} goes first.`);
     return { ok: true };
   }
 
   /**
    * @param {string} userId
-   * @returns {{ ok: boolean, error?: string, roll?: { d1: number, d2: number, total: number, isDouble: boolean }, barbarians?: boolean }}
+   * @param {number} tileId
+   * @param {string} buildingType
+   * @returns {{ ok: boolean, error?: string }}
+   */
+  placeBuilding(userId, tileId, buildingType) {
+    if (this.phase !== "main") {
+      return { ok: false, error: "Can only build during main phase" };
+    }
+    const current = this.players[this.currentTurnIndex];
+    if (current.id !== userId) {
+      return { ok: false, error: "Only the current player can build" };
+    }
+    
+    if (!BUILDING_TYPES.includes(buildingType)) {
+      return { ok: false, error: "Invalid building type" };
+    }
+    
+    const tile = this.board.tiles[tileId];
+    if (!tile) {
+      return { ok: false, error: "Invalid tile" };
+    }
+    
+    // Check if player already has building on this tile
+    const existingBuilding = tile.buildings.find(b => b.playerId === userId);
+    
+    const playerRes = this.resources[userId];
+    const playerPop = this.population[userId];
+    
+    // Check costs and requirements
+    let cost = {};
+    let populationRequired = 0;
+    let populationCapacity = 0;
+    let dpGain = 0;
+    let defenseGain = 0;
+    let isUpgrade = false;
+    
+    if (buildingType === "outpost") {
+      if (existingBuilding) {
+        return { ok: false, error: "You already have a building on this tile" };
+      }
+      cost = { stone: 1, water: 1 };
+      populationRequired = 1;
+      dpGain = 1;
+    } else if (buildingType === "citadel") {
+      // Must upgrade existing outpost
+      if (!existingBuilding || existingBuilding.type !== "outpost") {
+        return { ok: false, error: "Citadel must upgrade an existing Outpost" };
+      }
+      isUpgrade = true;
+      cost = { stone: 2, food: 2 };
+      populationCapacity = 2;
+      dpGain = 2;
+      // Remove old outpost DP (was 1)
+      this.dominionPoints[userId] -= 1;
+    } else if (buildingType === "capital") {
+      // Must upgrade existing citadel
+      if (!existingBuilding || existingBuilding.type !== "citadel") {
+        return { ok: false, error: "Capital must upgrade an existing Citadel" };
+      }
+      isUpgrade = true;
+      cost = { stone: 3, iron: 3, gold: 2 };
+      populationCapacity = 3;
+      dpGain = 4;
+      // Remove old citadel DP (was 2)
+      this.dominionPoints[userId] -= 2;
+    } else if (buildingType === "bastion") {
+      if (existingBuilding) {
+        return { ok: false, error: "You already have a building on this tile" };
+      }
+      cost = { iron: 1, food: 1 };
+      populationRequired = 1;
+      defenseGain = 1;
+    }
+    
+    // Check resources
+    for (const [resource, amount] of Object.entries(cost)) {
+      if (playerRes[resource] < amount) {
+        return { ok: false, error: `Not enough ${resource}. Need ${amount}, have ${playerRes[resource]}` };
+      }
+    }
+    
+    // Check population
+    if (buildingType === "outpost" || buildingType === "bastion") {
+      if (playerPop.used + populationRequired > playerPop.max) {
+        return { ok: false, error: `Not enough population capacity. Need ${playerPop.used + populationRequired}, have ${playerPop.max}` };
+      }
+    }
+    
+    // Deduct costs
+    for (const [resource, amount] of Object.entries(cost)) {
+      playerRes[resource] -= amount;
+    }
+    
+    // Update population
+    if (buildingType === "outpost" || buildingType === "bastion") {
+      playerPop.used += populationRequired;
+    }
+    if (buildingType === "citadel" || buildingType === "capital") {
+      // Remove old building's population usage
+      if (existingBuilding) {
+        playerPop.used -= 1; // Outpost used 1
+      }
+      playerPop.used += 0; // Citadel/Capital don't use population
+      playerPop.max += populationCapacity;
+    }
+    
+    // Update building
+    if (isUpgrade) {
+      // Upgrade existing building
+      existingBuilding.type = buildingType;
+    } else {
+      // New building
+      tile.buildings.push({ playerId: userId, type: buildingType });
+    }
+    
+    // Update stats
+    this.dominionPoints[userId] += dpGain;
+    this.defenseLevel[userId] += defenseGain;
+    
+    addToLog(this.eventLog, `${current.name} built ${buildingType} on tile ${tileId} (${tile.type}).`);
+    
+    return { ok: true };
+  }
+
+  /**
+   * @param {string} userId
+   * @returns {{ ok: boolean, error?: string, roll?: { d1: number, d2: number, total: number, isDouble: boolean } }}
    */
   rollDice(userId) {
     if (this.phase !== "roll") {
@@ -109,186 +362,134 @@ class SoureGame {
     this.lastRoll = { d1, d2, total, isDouble };
     this.extraTurn = isDouble;
 
-    if (total === 8) {
-      // Steal 1 resource from each opponent
-      const currentPlayerId = current.id;
-      let stolenCount = 0;
-      
-      this.players.forEach((p) => {
-        if (p.id !== currentPlayerId) {
-          const opponentRes = this.resources[p.id];
-          const opponentTotal = totalResources(opponentRes);
-          
-          if (opponentTotal > 0) {
-            // Find first available resource in priority order: people, cattle, water, sand, flint, clay
-            const priorityOrder = ["people", "cattle", "water", "sand", "flint", "clay"];
-            let stolen = false;
-            
-            for (const resourceType of priorityOrder) {
-              if (opponentRes[resourceType] > 0) {
-                opponentRes[resourceType] -= 1;
-                this.resources[currentPlayerId][resourceType] += 1;
-                stolen = true;
-                stolenCount++;
-                addToLog(this.eventLog, `${current.name} stole 1 ${resourceType} from ${p.name}.`);
-                break;
-              }
-            }
+    // Breach event (roll 7)
+    if (total === 7) {
+      this.handleBreach(current);
+      this.phase = "breach"; // Player must choose tile to block
+      return { ok: true, roll: this.lastRoll, breach: true };
+    }
+
+    // Normal resource production
+    this.distributeResources(total);
+    
+    this.phase = "main";
+    addToLog(this.eventLog, `Rolled ${total}. Resources distributed.`);
+    if (isDouble) {
+      addToLog(this.eventLog, `Doubles! ${current.name} gets an extra turn.`);
+    }
+
+    return { ok: true, roll: this.lastRoll, breach: false };
+  }
+
+  /**
+   * Distribute resources based on rolled number
+   */
+  distributeResources(rolledNumber) {
+    const activatedTiles = this.board.tiles.filter(t => 
+      t.number === rolledNumber && t.id !== this.board.blockedTileId
+    );
+    
+    for (const tile of activatedTiles) {
+      for (const building of tile.buildings) {
+        const playerId = building.playerId;
+        let amount = 0;
+        
+        if (building.type === "outpost") {
+          amount = 1;
+        } else if (building.type === "citadel") {
+          amount = 2;
+        } else if (building.type === "capital") {
+          amount = 3;
+        }
+        
+        if (amount > 0 && tile.type !== "market") {
+          const resourceType = tile.type;
+          if (RESOURCE_TYPES.includes(resourceType)) {
+            this.resources[playerId][resourceType] += amount;
+            const player = this.players.find(p => p.id === playerId);
+            addToLog(this.eventLog, `${player?.name} received ${amount} ${resourceType} from ${building.type} on tile ${tile.id}.`);
           }
         }
-      });
-      
-      if (stolenCount > 0) {
-        addToLog(this.eventLog, `Barbarians activated! (rolled 8) ${current.name} stole ${stolenCount} resource(s) from opponents.`);
-      } else {
-        addToLog(this.eventLog, `Barbarians activated! (rolled 8) ${current.name} rolled 8, but no opponents had resources to steal.`);
       }
-
-      // Check for resource overflow (>8) after stealing
-      this.players.forEach((p) => {
-        const res = this.resources[p.id];
-        const tot = totalResources(res);
-        if (tot > 8) {
-          const discard = Math.floor(tot / 2);
-          randomDiscard(res, discard);
-          addToLog(this.eventLog, `${p.name} had ${tot} resources (>8). Discarded ${discard} (half).`);
-        }
-      });
-
-      // Automatically advance turn after processing 8 (no barbarians phase, no stall)
-      this.phase = "main";
-      
-      // Advance turn to next player (turn ends automatically after 8)
-      if (this.extraTurn) {
-        this.extraTurn = false;
-        addToLog(this.eventLog, `${current.name} rolled 8 and stole ${stolenCount} resource(s). Extra turn from doubles cancelled.`);
-      } else {
-        addToLog(this.eventLog, `${current.name} rolled 8 and stole ${stolenCount} resource(s).`);
-      }
-      
-      // Advance to next player
-      this.currentTurnIndex = (this.currentTurnIndex + 1) % this.players.length;
-      const next = this.players[this.currentTurnIndex];
-      this.phase = "roll";
-      addToLog(this.eventLog, `Turn passed to ${next.name}.`);
-      
-      return { ok: true, roll: this.lastRoll, barbarians: false, stole: stolenCount, turnAdvanced: true };
     }
+  }
 
-    this.phase = "main";
+  /**
+   * Handle Breach event (roll 7)
+   */
+  handleBreach(currentPlayer) {
+    addToLog(this.eventLog, `Breach! (rolled 7) ${currentPlayer.name} must choose a tile to block.`);
+    
+    // Every player without Bastion loses 2 random resources
     this.players.forEach((p) => {
-      const r = RESOURCE_TYPES[Math.floor(Math.random() * RESOURCE_TYPES.length)];
-      this.resources[p.id][r] += 1;
-    });
-    addToLog(this.eventLog, `Rolled ${total}. Everyone received 1 random resource.`);
-    if (isDouble) addToLog(this.eventLog, `Doubles! ${current.name} gets an extra turn.`);
-
-    return { ok: true, roll: this.lastRoll, barbarians: false };
-  }
-
-  _clearOfferTimer() {
-    if (this._offerTimer) {
-      clearTimeout(this._offerTimer);
-      this._offerTimer = null;
-    }
-    this.activeOffer = null;
-  }
-
-  /**
-   * @param {string} userId
-   * @param {string} request - Resource type or "any"
-   * @param {() => void} onTimeout - Called when offer expires without accept
-   * @returns {{ ok: boolean, error?: string }}
-   */
-  createOffer(userId, request, onTimeout) {
-    if (this.phase !== "barbarians") {
-      return { ok: false, error: "Barbarians phase only" };
-    }
-    const current = this.players[this.currentTurnIndex];
-    if (current.id !== userId) {
-      return { ok: false, error: "Only the current player can create an offer" };
-    }
-
-    this._clearOfferTimer();
-    const valid = request === "any" || RESOURCE_TYPES.includes(request);
-    if (!valid) {
-      return { ok: false, error: "Invalid resource type" };
-    }
-
-    const expiresAt = Date.now() + OFFER_TIMEOUT_MS;
-    this.activeOffer = {
-      fromPlayerId: userId,
-      request,
-      promise: "barbarianCamp",
-      expiresAt,
-    };
-    addToLog(this.eventLog, `${current.name} offers: place barbarians in camp in exchange for 1 ${request === "any" ? "resource" : request}.`);
-
-    this._offerTimer = setTimeout(() => {
-      this._offerTimer = null;
-      if (this.activeOffer && this.phase === "barbarians") {
-        addToLog(this.eventLog, "Offer expired. Barbarians placed in camp.");
-        this.activeOffer = null;
-        this.phase = "main";
-        onTimeout();
+      if (p.id === currentPlayer.id) return; // Roller doesn't lose
+      
+      const hasBastion = this.board.tiles.some(tile => 
+        tile.buildings.some(b => b.playerId === p.id && b.type === "bastion")
+      );
+      
+      const hasCapital = this.board.tiles.some(tile => 
+        tile.buildings.some(b => b.playerId === p.id && b.type === "capital")
+      );
+      
+      // Capital owners are immune
+      if (hasCapital) {
+        addToLog(this.eventLog, `${p.name} is immune (has Capital).`);
+        return;
       }
-    }, OFFER_TIMEOUT_MS);
-
-    return { ok: true };
+      
+      const playerRes = this.resources[p.id];
+      const total = totalResources(playerRes);
+      
+      if (total === 0) return;
+      
+      let loseAmount = 2;
+      
+      // If player has 8+ DP and defense < 2, lose 4
+      if (this.dominionPoints[p.id] >= 8 && this.defenseLevel[p.id] < 2) {
+        loseAmount = 4;
+      }
+      
+      // If has Bastion, lose nothing
+      if (hasBastion) {
+        addToLog(this.eventLog, `${p.name} is protected by Bastion.`);
+        return;
+      }
+      
+      const actualLoss = Math.min(loseAmount, total);
+      randomDiscard(playerRes, actualLoss);
+      addToLog(this.eventLog, `${p.name} lost ${actualLoss} resource(s) in the Breach.`);
+    });
   }
 
   /**
-   * @param {string} userId - Acceptor
-   * @param {string} resourceType
-   * @returns {{ ok: boolean, error?: string }}
-   */
-  acceptOffer(userId, resourceType) {
-    if (this.phase !== "barbarians" || !this.activeOffer) {
-      return { ok: false, error: "No active offer" };
-    }
-    if (this.activeOffer.fromPlayerId === userId) {
-      return { ok: false, error: "Cannot accept your own offer" };
-    }
-
-    const res = this.resources[userId];
-    const req = this.activeOffer.request;
-    const validType = req === "any" ? RESOURCE_TYPES.includes(resourceType) : resourceType === req;
-    if (!validType) {
-      return { ok: false, error: `Invalid or wrong resource type` };
-    }
-    if (!res || res[resourceType] < 1) {
-      return { ok: false, error: "You do not have that resource" };
-    }
-
-    this._clearOfferTimer();
-    res[resourceType] -= 1;
-    const current = this.players[this.currentTurnIndex];
-    this.resources[current.id][resourceType] += 1;
-
-    const acceptor = this.players.find((p) => p.id === userId);
-    addToLog(this.eventLog, `${acceptor?.name ?? userId} accepted. Gave 1 ${resourceType} to ${current.name}. Barbarians placed in camp.`);
-
-    this.phase = "main";
-    return { ok: true };
-  }
-
-  /**
-   * Place barbarians in camp (no offer or player chooses to skip offer).
+   * Block a tile during Breach
    * @param {string} userId
+   * @param {number} tileId
    * @returns {{ ok: boolean, error?: string }}
    */
-  placeInCamp(userId) {
-    if (this.phase !== "barbarians") {
-      return { ok: false, error: "Barbarians phase only" };
+  blockTile(userId, tileId) {
+    if (this.phase !== "breach") {
+      return { ok: false, error: "Can only block tile during Breach phase" };
     }
     const current = this.players[this.currentTurnIndex];
     if (current.id !== userId) {
-      return { ok: false, error: "Only the current player can place barbarians" };
+      return { ok: false, error: "Only the current player can block a tile" };
     }
-
-    this._clearOfferTimer();
-    addToLog(this.eventLog, `${current.name} placed barbarians in camp.`);
+    
+    const tile = this.board.tiles[tileId];
+    if (!tile) {
+      return { ok: false, error: "Invalid tile" };
+    }
+    
+    if (tile.type === "market") {
+      return { ok: false, error: "Cannot block Central Market" };
+    }
+    
+    this.board.blockedTileId = tileId;
     this.phase = "main";
+    addToLog(this.eventLog, `${current.name} blocked tile ${tileId} (${tile.type}).`);
+    
     return { ok: true };
   }
 
@@ -323,16 +524,31 @@ class SoureGame {
     const current = this.players[this.currentTurnIndex];
     return {
       gameId: this.gameId,
-      players: this.players.map((p) => ({ id: p.id, name: p.name, username: p.name })),
+      players: this.players.map((p) => ({
+        id: p.id,
+        name: p.name,
+        username: p.name,
+        population: this.population[p.id],
+        dominionPoints: this.dominionPoints[p.id] || 0,
+        defenseLevel: this.defenseLevel[p.id] || 0
+      })),
       currentTurnPlayerId: current?.id ?? null,
       phase: this.phase,
       resources: { ...this.resources },
       lastRoll: this.lastRoll,
       eventLog: [...this.eventLog],
-      activeOffer: this.activeOffer ? { ...this.activeOffer } : null,
       extraTurn: this.extraTurn,
       creatorId: this.creatorId,
       matchStartTime: this.matchStartTime,
+      board: this.board ? {
+        tiles: this.board.tiles.map(t => ({
+          id: t.id,
+          type: t.type,
+          number: t.number,
+          buildings: [...t.buildings]
+        })),
+        blockedTileId: this.board.blockedTileId
+      } : null,
     };
   }
 }
