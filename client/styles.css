@@ -1244,6 +1244,24 @@ html, body {
   width: 100%;
 }
 
+.game-actions-inline .btn {
+  width: 100%;
+  padding: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.game-actions-inline .btn-primary {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+  border-color: var(--accent);
+  box-shadow: 0 0 16px rgba(139, 92, 246, 0.3);
+}
+
+.game-actions-inline .btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.4);
+}
+
 .breach-panel {
   margin-top: 20px;
   padding: 20px;

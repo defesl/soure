@@ -1,6 +1,6 @@
 "use strict";
 
-const RESOURCE_TYPES = ["stone", "iron", "food", "water", "gold"];
+const RESOURCE_TYPES = ["stone", "iron", "food", "water", "gold", "people"]; // MVP: includes people for testing
 const BUILDING_TYPES = ["outpost", "citadel", "capital", "bastion"];
 
 // Number tokens for tiles (excluding CentralMarket)
@@ -31,7 +31,7 @@ const HEX_ADJACENCY = [
 ];
 
 function emptyResources() {
-  return { stone: 0, iron: 0, food: 0, water: 0, gold: 0 };
+  return { stone: 0, iron: 0, food: 0, water: 0, gold: 0, people: 0 }; // MVP: includes people
 }
 
 function totalResources(res) {
@@ -68,13 +68,14 @@ function shuffleArray(array) {
 }
 
 function generateBoard() {
-  // Tile distribution
+  // Tile distribution (MVP: includes People for testing)
   const tileTypes = [
     ...Array(5).fill("stone"),
     ...Array(4).fill("food"),
     ...Array(3).fill("water"),
     ...Array(3).fill("iron"),
     ...Array(3).fill("gold"),
+    "people", // MVP test tile
     "market" // CentralMarket
   ];
   
@@ -411,6 +412,17 @@ class SoureGame {
           }
         }
       }
+    }
+    
+    // MVP: Simple People tile resource drop (no building required for testing)
+    const peopleTiles = this.board.tiles.filter(t => 
+      t.type === "people" && t.number === rolledNumber && t.id !== this.board.blockedTileId
+    );
+    
+    if (peopleTiles.length > 0) {
+      const current = this.players[this.currentTurnIndex];
+      this.resources[current.id].people += 1;
+      addToLog(this.eventLog, `${current.name} received 1 people from People tile (rolled ${rolledNumber}).`);
     }
   }
 

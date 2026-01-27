@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const RESOURCES = ["stone", "iron", "food", "water", "gold"];
+  const RESOURCES = ["stone", "iron", "food", "water", "gold", "people"]; // MVP: includes people for testing
 
   let user = null;
   let socket = null;
@@ -288,7 +288,15 @@
 
   function renderBoard() {
     const boardEl = $("hexBoard");
-    if (!boardEl || !state.board) return;
+    if (!boardEl) {
+      console.warn("[game] hexBoard element not found");
+      return;
+    }
+    if (!state.board) {
+      console.warn("[game] Board not generated yet");
+      boardEl.innerHTML = "<p style='text-align: center; color: var(--muted);'>Board will be generated when game starts...</p>";
+      return;
+    }
     
     boardEl.innerHTML = "";
     
@@ -308,6 +316,7 @@
         food: "#10b981",
         water: "#3b82f6",
         gold: "#f59e0b",
+        people: "#ec4899", // MVP: pink for people tile
         market: "#8b5cf6"
       };
       
@@ -398,6 +407,35 @@
     });
   }
 
+  let timerInterval = null;
+
+  function startTimer() {
+    if (timerInterval) clearInterval(timerInterval);
+    if (!state.matchStartTime) return;
+    
+    timerInterval = setInterval(() => {
+      updateTimer();
+    }, 1000);
+    updateTimer();
+  }
+
+  function stopTimer() {
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+  }
+
+  function updateTimer() {
+    const timerEl = $("gameTimer");
+    if (!timerEl || !state.matchStartTime) return;
+    
+    const elapsed = Math.floor((Date.now() - state.matchStartTime) / 1000);
+    const minutes = Math.floor(elapsed / 60);
+    const seconds = elapsed % 60;
+    timerEl.textContent = `Time: ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }
+
   function renderDice() {
     const diceContainer = $("diceContainer");
     const dice1 = $("dice1");
@@ -407,7 +445,15 @@
     if (!inGame() || state.phase === "lobby") {
       if (diceContainer) diceContainer.classList.add("hidden");
       if (diceResult) diceResult.classList.add("hidden");
+      stopTimer();
       return;
+    }
+
+    // Start timer when match starts
+    if (state.matchStartTime) {
+      if (!timerInterval) {
+        startTimer();
+      }
     }
 
     if (diceContainer) diceContainer.classList.remove("hidden");
@@ -498,6 +544,7 @@
     const buildingPanel = $("buildingPanel");
 
     if (!inGame()) {
+      lobbySection.classList.remove("hidden");
       info.classList.add("hidden");
       res.classList.add("hidden");
       log.classList.add("hidden");
@@ -505,11 +552,13 @@
       if (buildingPanel) buildingPanel.classList.add("hidden");
       renderLobby();
       renderInventory();
+      stopTimer();
       return;
     }
 
     // Render lobby if in lobby phase
     if (state.phase === "lobby") {
+      lobbySection.classList.remove("hidden");
       info.classList.add("hidden");
       res.classList.add("hidden");
       log.classList.add("hidden");
@@ -517,15 +566,27 @@
       if (buildingPanel) buildingPanel.classList.add("hidden");
       renderLobby();
       renderInventory();
+      stopTimer();
       return;
     }
 
     // Game phase - show game UI
-    info.classList.remove("hidden");
+    lobbySection.classList.add("hidden"); // Hide lobby
+    info.classList.remove("hidden"); // Show game
     res.classList.remove("hidden");
     log.classList.remove("hidden");
-    renderLobby(); // This will hide lobby elements
-    renderBoard();
+    
+    // Ensure board renders
+    if (state.board) {
+      renderBoard();
+    } else {
+      console.warn("[game] Board not found in state, match may not have started");
+      const boardEl = $("hexBoard");
+      if (boardEl) {
+        boardEl.innerHTML = "<p style='text-align: center; color: var(--muted); padding: 40px;'>Board will be generated when game starts...</p>";
+      }
+    }
+    
     renderPlayers();
     renderDice();
     renderInventory();
@@ -542,12 +603,29 @@
     const endTurnBtn = $("endTurnBtn");
     const blockTileBtn = $("blockTileBtn");
     
-    if (roll && isCurrentPlayer()) rollBtn.classList.remove("hidden");
-    else rollBtn.classList.add("hidden");
-    if (main && isCurrentPlayer()) endTurnBtn.classList.remove("hidden");
-    else endTurnBtn.classList.add("hidden");
-    if (breach && isCurrentPlayer()) blockTileBtn.classList.remove("hidden");
-    else blockTileBtn.classList.add("hidden");
+    // Always show Roll Dice button when it's roll phase and current player's turn
+    console.log("[game] renderState - phase:", state.phase, "isCurrentPlayer:", isCurrentPlayer(), "roll:", roll);
+    if (roll && isCurrentPlayer()) {
+      console.log("[game] Showing Roll Dice button");
+      if (rollBtn) {
+        rollBtn.classList.remove("hidden");
+        rollBtn.style.display = ""; // Ensure it's visible
+      }
+    } else {
+      if (rollBtn) rollBtn.classList.add("hidden");
+    }
+    
+    if (main && isCurrentPlayer()) {
+      if (endTurnBtn) endTurnBtn.classList.remove("hidden");
+    } else {
+      if (endTurnBtn) endTurnBtn.classList.add("hidden");
+    }
+    
+    if (breach && isCurrentPlayer()) {
+      if (blockTileBtn) blockTileBtn.classList.remove("hidden");
+    } else {
+      if (blockTileBtn) blockTileBtn.classList.add("hidden");
+    }
 
     // Resources grid is now in sidebar
 
