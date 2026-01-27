@@ -31,10 +31,11 @@ function createGame(creatorId, creatorUsername) {
   const gameId = generateGameId();
   const game = new SoureGame(gameId, { minPlayers, maxPlayers });
   game.addPlayer(creatorId, creatorUsername);
+  game.creatorId = creatorId; // Set creatorId on the game instance
   games.set(gameId, { game, creatorId });
   // Track active game for creator
   userActiveGames.set(creatorId, gameId);
-  console.log("[gameStore] Created game:", gameId, "creator:", creatorUsername);
+  console.log("[gameStore] Created game:", gameId, "creator:", creatorUsername, "creatorId:", creatorId);
   return { gameId };
 }
 

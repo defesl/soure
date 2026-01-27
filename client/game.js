@@ -149,17 +149,27 @@
     });
 
     socket.on("gameState", (s) => {
-      console.log("[game] gameState received:", s ? { gameId: s.gameId, phase: s.phase, playersCount: s.players?.length } : "null");
+      console.log("[game] gameState received:", s ? { gameId: s.gameId, phase: s.phase, playersCount: s.players?.length, creatorId: s.creatorId, currentTurnPlayerId: s.currentTurnPlayerId } : "null");
+      if (!s) {
+        console.warn("[game] Received null gameState");
+        state = null;
+        renderState();
+        return;
+      }
       state = s;
+      console.log("[game] Updating state, calling renderState");
       renderState();
     });
 
     socket.on("createGameResult", (r) => {
+      console.log("[game] createGameResult received:", r);
       if (!r.ok) {
         showError(r.error || "Create game failed");
       } else {
-        // Auto-switch to lobby view when game is created
+        console.log("[game] Game created successfully, gameId:", r.gameId);
         // The gameState event will handle the UI update
+        // But we can also show a success message
+        showError(""); // Clear any errors
       }
     });
 
@@ -198,7 +208,7 @@
   }
 
   function isCreator() {
-    return inGame() && state.creatorId === user.id;
+    return inGame() && user && state.creatorId === user.id;
   }
 
   function isBreach() {
@@ -221,43 +231,56 @@
     const lobbyGameIdText = $("lobbyGameIdText");
     const lobbyStartBtn = $("lobbyStartBtn");
     const startBtnLobby = $("startBtnLobby");
-    const createJoinSection = lobbySection.querySelector(".game-actions");
+    const createJoinSection = lobbySection ? lobbySection.querySelector(".game-actions") : null;
+
+    console.log("[game] renderLobby called, inGame():", inGame(), "phase:", state?.phase);
+    console.log("[game] isCreator():", isCreator(), "user.id:", user?.id, "state.creatorId:", state?.creatorId);
 
     if (!inGame() || state.phase !== "lobby") {
       // Hide lobby elements but keep create/join section visible
-      lobbyPlayers.classList.add("hidden");
-      lobbyGameId.classList.add("hidden");
-      lobbyStartBtn.classList.add("hidden");
+      console.log("[game] Not in game or not in lobby phase, hiding lobby UI");
+      if (lobbyPlayers) lobbyPlayers.classList.add("hidden");
+      if (lobbyGameId) lobbyGameId.classList.add("hidden");
+      if (lobbyStartBtn) lobbyStartBtn.classList.add("hidden");
       if (createJoinSection) createJoinSection.style.display = "";
       return;
     }
 
     // Show lobby UI - hide create/join section
+    console.log("[game] Showing lobby UI for game:", state.gameId);
     if (createJoinSection) createJoinSection.style.display = "none";
-    lobbyPlayers.classList.remove("hidden");
-    lobbyGameId.classList.remove("hidden");
-    lobbyGameIdText.textContent = state.gameId;
+    if (lobbyPlayers) lobbyPlayers.classList.remove("hidden");
+    if (lobbyGameId) lobbyGameId.classList.remove("hidden");
+    if (lobbyGameIdText) lobbyGameIdText.textContent = state.gameId;
 
     // Render player circles
-    lobbyPlayers.innerHTML = "";
-    (state.players || []).forEach((p) => {
-      const isCreator = p.id === state.creatorId;
-      const avatar = document.createElement("div");
-      avatar.className = "player-avatar";
-      avatar.innerHTML = `
-        <div class="player-circle ${isCreator ? 'creator' : ''}" title="${escapeHtml(p.name)}">
-          ${getInitials(p.name)}
-        </div>
-        <div class="player-name">${escapeHtml(p.name)}</div>
-      `;
-      lobbyPlayers.appendChild(avatar);
-    });
+    if (lobbyPlayers) {
+      lobbyPlayers.innerHTML = "";
+      (state.players || []).forEach((p) => {
+        const isCreator = p.id === state.creatorId;
+        const avatar = document.createElement("div");
+        avatar.className = "player-avatar";
+        avatar.innerHTML = `
+          <div class="player-circle ${isCreator ? 'creator' : ''}" title="${escapeHtml(p.name)}">
+            ${getInitials(p.name)}
+          </div>
+          <div class="player-name">${escapeHtml(p.name)}</div>
+        `;
+        lobbyPlayers.appendChild(avatar);
+      });
+    }
 
     // Show Start Game button for creator
-    if (isCreator()) {
-      lobbyStartBtn.classList.remove("hidden");
+    const creatorCheck = isCreator();
+    console.log("[game] Creator check result:", creatorCheck, "user.id:", user?.id, "state.creatorId:", state?.creatorId);
+    if (creatorCheck) {
+      console.log("[game] Showing Start Game button");
+      if (lobbyStartBtn) lobbyStartBtn.classList.remove("hidden");
+      if (startBtnLobby) startBtnLobby.classList.remove("hidden");
     } else {
-      lobbyStartBtn.classList.add("hidden");
+      console.log("[game] Hiding Start Game button (not creator)");
+      if (lobbyStartBtn) lobbyStartBtn.classList.add("hidden");
+      if (startBtnLobby) startBtnLobby.classList.add("hidden");
     }
   }
 
@@ -544,10 +567,11 @@
     const buildingPanel = $("buildingPanel");
 
     if (!inGame()) {
-      lobbySection.classList.remove("hidden");
-      info.classList.add("hidden");
-      res.classList.add("hidden");
-      log.classList.add("hidden");
+      console.log("[game] Not in game, showing create/join section");
+      if (lobbySection) lobbySection.classList.remove("hidden");
+      if (info) info.classList.add("hidden");
+      if (res) res.classList.add("hidden");
+      if (log) log.classList.add("hidden");
       if (breachPanel) breachPanel.classList.add("hidden");
       if (buildingPanel) buildingPanel.classList.add("hidden");
       renderLobby();
@@ -558,10 +582,11 @@
 
     // Render lobby if in lobby phase
     if (state.phase === "lobby") {
-      lobbySection.classList.remove("hidden");
-      info.classList.add("hidden");
-      res.classList.add("hidden");
-      log.classList.add("hidden");
+      console.log("[game] Rendering lobby phase");
+      if (lobbySection) lobbySection.classList.remove("hidden");
+      if (info) info.classList.add("hidden");
+      if (res) res.classList.add("hidden");
+      if (log) log.classList.add("hidden");
       if (breachPanel) breachPanel.classList.add("hidden");
       if (buildingPanel) buildingPanel.classList.add("hidden");
       renderLobby();
@@ -648,7 +673,29 @@
   }
 
   $("createBtn").addEventListener("click", () => {
-    if (!socket || !user) return;
+    console.log("[game] Create Game button clicked");
+    console.log("[game] Socket:", socket ? { connected: socket.connected, id: socket.id } : "null");
+    console.log("[game] User:", user ? { id: user.id, username: user.username } : "null");
+    
+    if (!socket) {
+      console.error("[game] Socket not initialized");
+      showError("Socket not connected. Please refresh the page.");
+      return;
+    }
+    
+    if (!user) {
+      console.error("[game] User not authenticated");
+      showError("Not logged in. Please log in first.");
+      return;
+    }
+    
+    if (!socket.connected) {
+      console.error("[game] Socket not connected");
+      showError("Connection lost. Please refresh the page.");
+      return;
+    }
+    
+    console.log("[game] Emitting createGame");
     socket.emit("createGame");
   });
 
