@@ -3,31 +3,30 @@
 const RESOURCE_TYPES = ["stone", "iron", "food", "water", "gold", "people"]; // MVP: includes people for testing
 const BUILDING_TYPES = ["outpost", "citadel", "capital", "bastion"];
 
-// Number tokens for tiles (excluding CentralMarket)
+// Number tokens for resource tiles (2–12, Catan-style; 18 tokens for 18 resource hexes)
 const NUMBER_TOKENS = [2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12];
 
-// Hex board layout (19 tiles in a hex pattern)
-// Adjacency: each tile has neighbors (for 6/8 rule)
+// Hex board layout: 19 tiles in 3-4-5-4-3 (Catan-style). Adjacency for 6/8 rule.
 const HEX_ADJACENCY = [
-  [1, 3, 4],           // 0
-  [0, 2, 4, 5],        // 1
-  [1, 5, 6],           // 2
-  [0, 4, 7, 8],        // 3
-  [0, 1, 3, 5, 8, 9],  // 4 (center)
-  [1, 2, 4, 6, 9, 10], // 5
-  [2, 5, 10, 11],      // 6
-  [3, 8, 12, 13],      // 7
-  [3, 4, 7, 9, 13, 14], // 8
-  [4, 5, 8, 10, 14, 15], // 9
-  [5, 6, 9, 11, 15, 16], // 10
-  [6, 10, 16, 17],     // 11
-  [7, 13, 18],         // 12
-  [7, 8, 12, 14, 18],  // 13
-  [8, 9, 13, 15, 18],  // 14
-  [9, 10, 14, 16, 18], // 15
-  [10, 11, 15, 17, 18], // 16
-  [11, 16, 18],        // 17
-  [12, 13, 14, 15, 16, 17] // 18 (CentralMarket)
+  [1, 3, 4],           // 0  row 0
+  [0, 2, 4, 5],       // 1
+  [1, 5, 6],          // 2
+  [0, 4, 7, 8],       // 3  row 1
+  [0, 1, 3, 5, 8, 9], // 4
+  [1, 2, 4, 6, 9, 10],// 5
+  [2, 5, 10, 11],     // 6
+  [3, 8, 12, 13],     // 7  row 2
+  [3, 4, 7, 9, 13, 14],// 8
+  [4, 5, 8, 10, 14, 15],// 9
+  [5, 6, 9, 11, 15, 16],// 10
+  [6, 10, 16, 17],    // 11
+  [7, 13, 18],        // 12 row 3
+  [7, 8, 12, 14, 18], // 13
+  [8, 9, 13, 15, 18], // 14
+  [9, 10, 14, 16, 18],// 15
+  [10, 11, 15, 17, 18],// 16 row 4
+  [11, 16, 18],       // 17
+  [12, 13, 14, 15, 16, 17] // 18 Grand Bazaar (no number)
 ];
 
 function emptyResources() {
@@ -68,59 +67,43 @@ function shuffleArray(array) {
 }
 
 function generateBoard() {
-  // Tile distribution (MVP: includes People for testing)
-  const tileTypes = [
-    ...Array(5).fill("stone"),
-    ...Array(4).fill("food"),
-    ...Array(3).fill("water"),
-    ...Array(3).fill("iron"),
-    ...Array(3).fill("gold"),
-    "people", // MVP test tile
-    "market" // CentralMarket
-  ];
-  
-  // Shuffle tile types
+  // 18 resource tiles: 3 of each type. 1 Grand Bazaar. Total 19 (Catan-style).
+  const RESOURCE_COUNTS = { stone: 3, iron: 3, food: 3, water: 3, gold: 3, people: 3 };
+  const tileTypes = [];
+  for (const [type, count] of Object.entries(RESOURCE_COUNTS)) {
+    for (let i = 0; i < count; i++) tileTypes.push(type);
+  }
+  tileTypes.push("grandBazaar");
+
   const shuffledTypes = shuffleArray(tileTypes);
-  
-  // Create tiles
+
   const tiles = shuffledTypes.map((type, id) => ({
     id,
     type,
     number: null,
-    buildings: [] // [{ playerId, type }]
+    buildings: []
   }));
-  
-  // Find market tile and set number to null
-  const marketTile = tiles.find(t => t.type === "market");
-  if (marketTile) {
-    marketTile.number = null;
-  }
-  
-  // Assign numbers to non-market tiles
-  const numberTokens = shuffleArray(NUMBER_TOKENS);
-  let tokenIndex = 0;
-  
-  // Assign numbers ensuring 6 and 8 are not adjacent
-  const tilesToNumber = tiles.filter(t => t.type !== "market");
+
+  const bazaarTile = tiles.find(t => t.type === "grandBazaar");
+  if (bazaarTile) bazaarTile.number = null;
+
+  const tilesToNumber = tiles.filter(t => t.type !== "grandBazaar");
   let attempts = 0;
   const maxAttempts = 100;
-  
+
   while (attempts < maxAttempts) {
     const shuffledNumbers = shuffleArray(NUMBER_TOKENS);
-    let valid = true;
-    
     for (let i = 0; i < tilesToNumber.length; i++) {
       tilesToNumber[i].number = shuffledNumbers[i];
     }
-    
-    // Check 6/8 adjacency rule
+    let valid = true;
     for (let i = 0; i < tiles.length; i++) {
       const tile = tiles[i];
       if (tile.number === 6 || tile.number === 8) {
         const neighbors = HEX_ADJACENCY[i] || [];
-        for (const neighborId of neighbors) {
-          const neighbor = tiles[neighborId];
-          if (neighbor && (neighbor.number === 6 || neighbor.number === 8)) {
+        for (const nid of neighbors) {
+          const n = tiles[nid];
+          if (n && (n.number === 6 || n.number === 8)) {
             valid = false;
             break;
           }
@@ -128,28 +111,17 @@ function generateBoard() {
         if (!valid) break;
       }
     }
-    
-    if (valid) {
-      break;
-    }
-    
+    if (valid) break;
     attempts++;
-    // Reset numbers
-    tilesToNumber.forEach(t => t.number = null);
+    tilesToNumber.forEach(t => { t.number = null; });
   }
-  
-  // If still invalid after max attempts, assign anyway (fallback)
+
   if (attempts >= maxAttempts) {
     const shuffledNumbers = shuffleArray(NUMBER_TOKENS);
-    for (let i = 0; i < tilesToNumber.length; i++) {
-      tilesToNumber[i].number = shuffledNumbers[i];
-    }
+    for (let i = 0; i < tilesToNumber.length; i++) tilesToNumber[i].number = shuffledNumbers[i];
   }
-  
-  return {
-    tiles,
-    blockedTileId: null
-  };
+
+  return { tiles, blockedTileId: null };
 }
 
 class SoureGame {
@@ -377,7 +349,7 @@ class SoureGame {
       this.handleBreach(current);
       // Auto-block a random resource tile (MVP: prevent game freeze)
       const resourceTiles = this.board.tiles.filter(t => 
-        t.type !== "market" && t.id !== this.board.blockedTileId
+        t.type !== "grandBazaar" && t.id !== this.board.blockedTileId
       );
       if (resourceTiles.length > 0) {
         const randomTile = resourceTiles[Math.floor(Math.random() * resourceTiles.length)];
@@ -429,7 +401,7 @@ class SoureGame {
             amount = 3;
           }
           
-          if (amount > 0 && tile.type !== "market") {
+          if (amount > 0 && tile.type !== "grandBazaar") {
             const resourceType = tile.type;
             if (RESOURCE_TYPES.includes(resourceType)) {
               this.resources[playerId][resourceType] += amount;
@@ -442,7 +414,7 @@ class SoureGame {
         }
       } else {
         // MVP: If no buildings, grant current player +1 resource from matching tile (temporary for testing)
-        if (tile.type !== "market" && RESOURCE_TYPES.includes(tile.type)) {
+        if (tile.type !== "grandBazaar" && RESOURCE_TYPES.includes(tile.type)) {
           const resourceType = tile.type;
           this.resources[current.id][resourceType] += 1;
           addToLog(this.eventLog, `${current.name} received 1 ${resourceType} from tile ${tile.id} (no building yet).`);
@@ -537,8 +509,8 @@ class SoureGame {
       return { ok: false, error: "Invalid tile" };
     }
     
-    if (tile.type === "market") {
-      return { ok: false, error: "Cannot block Central Market" };
+    if (tile.type === "grandBazaar") {
+      return { ok: false, error: "Cannot block Grand Bazaar" };
     }
     
     this.board.blockedTileId = tileId;

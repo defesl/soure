@@ -1,7 +1,16 @@
 (function () {
   "use strict";
 
-  const RESOURCES = ["stone", "iron", "food", "water", "gold", "people"]; // MVP: includes people for testing
+  const RESOURCES = ["stone", "iron", "food", "water", "gold", "people"];
+
+  // Catan-style 3-4-5-4-3 hex layout: [row, col] for tile index 0..18
+  const HEX_GRID_LAYOUT = [
+    [0, 0], [0, 1], [0, 2],                           // row 0: 3 tiles
+    [1, 0], [1, 1], [1, 2], [1, 3],                    // row 1: 4
+    [2, 0], [2, 1], [2, 2], [2, 3], [2, 4],           // row 2: 5
+    [3, 0], [3, 1], [3, 2], [3, 3],                    // row 3: 4
+    [4, 0], [4, 1], [4, 2]                             // row 4: 3
+  ];
 
   let user = null;
   let socket = null;
@@ -45,13 +54,15 @@
 
   function showError(msg) {
     const el = $("errorEl");
+    if (!el) return;
     el.textContent = msg;
     el.classList.remove("hidden");
     setTimeout(() => el.classList.add("hidden"), 5000);
   }
 
   function hideError() {
-    $("errorEl").classList.add("hidden");
+    const el = $("errorEl");
+    if (el) el.classList.add("hidden");
   }
 
   function toggleHidden(id, hide) {
@@ -64,14 +75,15 @@
     const status = $("loginStatus");
     const loginLink = $("loginLink");
     const logoutBtn = $("logoutBtn");
+    if (!status && !loginLink && !logoutBtn) return;
     if (user) {
-      status.textContent = "Logged in as " + user.username;
-      loginLink.classList.add("hidden");
-      logoutBtn.classList.remove("hidden");
+      if (status) status.textContent = "Logged in as " + user.username;
+      if (loginLink) loginLink.classList.add("hidden");
+      if (logoutBtn) logoutBtn.classList.remove("hidden");
     } else {
-      status.textContent = "Not logged in";
-      loginLink.classList.remove("hidden");
-      logoutBtn.classList.add("hidden");
+      if (status) status.textContent = "Not logged in";
+      if (loginLink) loginLink.classList.remove("hidden");
+      if (logoutBtn) logoutBtn.classList.add("hidden");
     }
   }
 
@@ -83,30 +95,22 @@
     return fetchMe().then((data) => {
       console.log("[game] /api/me response:", data);
       if (!data.ok) {
-        const errorMsg = "Authentication failed. Please try logging in again.";
-        console.error("[game] /api/me failed:", errorMsg);
-        showError(errorMsg);
-        setTimeout(() => {
-          window.location.href = "/login";
-        }, 3000);
+        console.error("[game] /api/me failed: not ok");
+        setTimeout(() => { window.location.href = "/login"; }, 100);
         return Promise.reject(new Error("Failed to fetch /api/me"));
       }
       user = data.user;
       if (!user) {
         console.log("[game] No user session, redirecting to login");
-        showError("Not logged in. Redirecting to login...");
-        setTimeout(() => {
-          window.location.href = "/login";
-        }, 2000);
+        setTimeout(() => { window.location.href = "/login"; }, 100);
         return Promise.reject(new Error("redirect"));
       }
       console.log("[game] User authenticated:", user.username, "userId:", user.id);
       renderLoginStatus();
-      // Check for active game after auth
       checkActiveGame();
     }).catch((err) => {
       console.error("[game] Auth initialization error:", err);
-      if (err.message !== "redirect") {
+      if (err.message !== "redirect" && err.message !== "Failed to fetch /api/me") {
         showError("Failed to authenticate. Please refresh the page or log in again.");
       }
     });
@@ -170,13 +174,16 @@
     sessionStorage.removeItem(REJOIN_STORAGE_KEY);
   }
 
-  $("logoutBtn").addEventListener("click", () => {
-    fetch("/api/logout", { method: "POST", credentials: "same-origin" })
-      .then(() => {
-        user = null;
-        window.location.href = "/login";
-      });
-  });
+  const logoutBtn = $("logoutBtn");
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", () => {
+      fetch("/api/logout", { method: "POST", credentials: "same-origin" })
+        .then(() => {
+          user = null;
+          window.location.href = "/";
+        });
+    });
+  }
 
   function connectSocket() {
     socket = io({ withCredentials: true });
@@ -282,61 +289,69 @@
 
   function renderLobby() {
     const lobbySection = $("lobbySection");
+    const lobbyCreateJoin = $("lobbyCreateJoin");
+    const lobbyRoom = $("lobbyRoom");
     const lobbyPlayers = $("lobbyPlayers");
-    const lobbyGameId = $("lobbyGameId");
-    const lobbyGameIdText = $("lobbyGameIdText");
     const lobbyStartBtn = $("lobbyStartBtn");
     const startBtnLobby = $("startBtnLobby");
-    const createJoinSection = lobbySection ? lobbySection.querySelector(".game-actions") : null;
+    const gameTopbarGameId = $("gameTopbarGameId");
+    const gameTimer = $("gameTimer");
 
-    console.log("[game] renderLobby called, inGame():", inGame(), "phase:", state?.phase);
-    console.log("[game] isCreator():", isCreator(), "user.id:", user?.id, "state.creatorId:", state?.creatorId);
+    if (!lobbySection) return;
 
-    if (!inGame() || state.phase !== "lobby") {
-      // Hide lobby elements but keep create/join section visible
-      console.log("[game] Not in game or not in lobby phase, hiding lobby UI");
-      if (lobbyPlayers) lobbyPlayers.classList.add("hidden");
-      if (lobbyGameId) lobbyGameId.classList.add("hidden");
-      if (lobbyStartBtn) lobbyStartBtn.classList.add("hidden");
-      if (createJoinSection) createJoinSection.style.display = "";
+    if (!inGame() || state?.phase !== "lobby") {
+      if (lobbyCreateJoin) lobbyCreateJoin.classList.remove("hidden");
+      if (lobbyRoom) lobbyRoom.classList.add("hidden");
+      if (gameTopbarGameId) {
+        gameTopbarGameId.classList.remove("hidden");
+        gameTopbarGameId.textContent = "Game ID: —";
+      }
+      if (gameTimer) gameTimer.classList.add("hidden");
       return;
     }
 
-    // Show lobby UI - hide create/join section
-    console.log("[game] Showing lobby UI for game:", state.gameId);
-    if (createJoinSection) createJoinSection.style.display = "none";
-    if (lobbyPlayers) lobbyPlayers.classList.remove("hidden");
-    if (lobbyGameId) lobbyGameId.classList.remove("hidden");
-    if (lobbyGameIdText) lobbyGameIdText.textContent = state.gameId;
+    if (lobbyCreateJoin) lobbyCreateJoin.classList.add("hidden");
+    if (lobbyRoom) lobbyRoom.classList.remove("hidden");
 
-    // Render player circles
+    if (gameTopbarGameId) {
+      gameTopbarGameId.classList.remove("hidden");
+      gameTopbarGameId.textContent = "Game ID: " + (state.gameId || "—");
+    }
+    if (gameTimer) gameTimer.classList.add("hidden");
+
     if (lobbyPlayers) {
       lobbyPlayers.innerHTML = "";
-      (state.players || []).forEach((p) => {
-        const isCreator = p.id === state.creatorId;
-        const avatar = document.createElement("div");
-        avatar.className = "player-avatar";
-        avatar.innerHTML = `
-          <div class="player-circle ${isCreator ? 'creator' : ''}" title="${escapeHtml(p.name)}">
-            ${getInitials(p.name)}
-          </div>
-          <div class="player-name">${escapeHtml(p.name)}</div>
-        `;
-        lobbyPlayers.appendChild(avatar);
-      });
+      const players = state.players || [];
+      const maxSlots = 4;
+      for (let i = 0; i < maxSlots; i++) {
+        const p = players[i];
+        const slot = document.createElement("div");
+        slot.className = "game-lobby-slot";
+        slot.setAttribute("role", "listitem");
+        if (p) {
+          const isCreator = p.id === state.creatorId;
+          slot.classList.add("filled");
+          slot.innerHTML = `
+            <div class="player-circle ${isCreator ? "creator" : ""}" title="${escapeHtml(p.name)}">${getInitials(p.name)}</div>
+            <div class="player-name">${escapeHtml(p.name)}</div>
+          `;
+        } else {
+          slot.classList.add("empty");
+          slot.innerHTML = '<div class="player-circle player-circle-empty" aria-hidden="true"></div><div class="player-name" aria-hidden="true">—</div>';
+        }
+        lobbyPlayers.appendChild(slot);
+      }
     }
 
-    // Show Start Game button for creator
     const creatorCheck = isCreator();
-    console.log("[game] Creator check result:", creatorCheck, "user.id:", user?.id, "state.creatorId:", state?.creatorId);
-    if (creatorCheck) {
-      console.log("[game] Showing Start Game button");
-      if (lobbyStartBtn) lobbyStartBtn.classList.remove("hidden");
-      if (startBtnLobby) startBtnLobby.classList.remove("hidden");
-    } else {
-      console.log("[game] Hiding Start Game button (not creator)");
-      if (lobbyStartBtn) lobbyStartBtn.classList.add("hidden");
-      if (startBtnLobby) startBtnLobby.classList.add("hidden");
+    if (lobbyStartBtn) {
+      if (creatorCheck) {
+        lobbyStartBtn.classList.remove("hidden");
+        if (startBtnLobby) startBtnLobby.disabled = false;
+      } else {
+        lobbyStartBtn.classList.add("hidden");
+        if (startBtnLobby) startBtnLobby.disabled = true;
+      }
     }
   }
 
@@ -378,64 +393,67 @@
     }
     if (!state.board) {
       console.warn("[game] Board not generated yet");
-      boardEl.innerHTML = "<p style='text-align: center; color: var(--muted);'>Board will be generated when game starts...</p>";
+      boardEl.innerHTML = "<p class=\"hex-board-placeholder\">Board will be generated when game starts…</p>";
       return;
     }
-    
+
+    const typeColors = {
+      stone: "#8b8ba3",
+      iron: "#6b7280",
+      food: "#10b981",
+      water: "#3b82f6",
+      gold: "#f59e0b",
+      people: "#ec4899",
+      grandBazaar: "#a78bfa",
+      market: "#a78bfa"
+    };
+
+    function typeLabel(type) {
+      if (type === "grandBazaar" || type === "market") return "Grand Bazaar";
+      return type[0].toUpperCase() + type.slice(1);
+    }
+
     boardEl.innerHTML = "";
-    
-    state.board.tiles.forEach((tile) => {
+    const tilesById = state.board.tiles.reduce((acc, t) => { acc[t.id] = t; return acc; }, {});
+
+    for (let id = 0; id < 19; id++) {
+      const tile = tilesById[id];
+      if (!tile) continue;
+      const [row, col] = HEX_GRID_LAYOUT[id];
+
       const hex = document.createElement("div");
       hex.className = "hex-tile";
-      hex.dataset.tileId = tile.id;
-      
-      if (tile.id === state.board.blockedTileId) {
-        hex.classList.add("blocked");
-      }
-      
-      // Tile type icon/color
-      const typeColors = {
-        stone: "#8b8ba3",
-        iron: "#6b7280",
-        food: "#10b981",
-        water: "#3b82f6",
-        gold: "#f59e0b",
-        people: "#ec4899", // MVP: pink for people tile
-        market: "#8b5cf6"
-      };
-      
+      hex.dataset.tileId = String(tile.id);
+      hex.style.gridRow = String(row + 1);
+      hex.style.gridColumn = String(col + 1);
       hex.style.backgroundColor = typeColors[tile.type] || "#1a1a1f";
-      
-      // Tile type label
-      const typeLabel = document.createElement("div");
-      typeLabel.className = "hex-type";
-      typeLabel.textContent = tile.type === "market" ? "Market" : tile.type[0].toUpperCase() + tile.type.slice(1);
-      hex.appendChild(typeLabel);
-      
-      // Number token
-      if (tile.number !== null) {
+
+      if (tile.id === state.board.blockedTileId) hex.classList.add("blocked");
+
+      const typeLabelEl = document.createElement("div");
+      typeLabelEl.className = "hex-type";
+      typeLabelEl.textContent = typeLabel(tile.type);
+      hex.appendChild(typeLabelEl);
+
+      if (tile.number != null && tile.type !== "grandBazaar" && tile.type !== "market") {
         const numberEl = document.createElement("div");
         numberEl.className = "hex-number";
-        numberEl.textContent = tile.number;
+        numberEl.textContent = String(tile.number);
         hex.appendChild(numberEl);
       }
-      
-      // Buildings
+
       const buildingsEl = document.createElement("div");
       buildingsEl.className = "hex-buildings";
-      tile.buildings.forEach((building) => {
+      (tile.buildings || []).forEach((building) => {
         const buildingEl = document.createElement("div");
-        buildingEl.className = `building building-${building.type}`;
+        buildingEl.className = "building building-" + building.type;
         buildingEl.title = building.type;
         const player = state.players.find(p => p.id === building.playerId);
-        if (player) {
-          buildingEl.textContent = getInitials(player.name);
-        }
+        buildingEl.textContent = player ? getInitials(player.name) : "";
         buildingsEl.appendChild(buildingEl);
       });
       hex.appendChild(buildingsEl);
-      
-      // Click handler for building placement
+
       if (state.phase === "main" && isCurrentPlayer() && selectedBuildingType) {
         hex.classList.add("clickable");
         hex.addEventListener("click", () => {
@@ -444,9 +462,9 @@
           renderBuildingPanel();
         });
       }
-      
+
       boardEl.appendChild(hex);
-    });
+    }
   }
 
   let selectedBuildingType = null;
@@ -572,8 +590,8 @@
     tileSelection.innerHTML = "";
     
     state.board.tiles.forEach((tile) => {
-      if (tile.type === "market") return; // Can't block market
-      
+      if (tile.type === "grandBazaar" || tile.type === "market") return;
+
       const btn = document.createElement("button");
       btn.className = "btn tile-select-btn";
       btn.textContent = `Tile ${tile.id} (${tile.type}${tile.number ? `, ${tile.number}` : ''})`;
@@ -618,12 +636,17 @@
   }
 
   function renderState() {
-    if (!state) return;
-
     const info = $("gameInfoSection");
+    const lobbySection = $("lobbySection");
+    if (!state) {
+      if (lobbySection) lobbySection.classList.remove("hidden");
+      if (info) info.classList.add("hidden");
+      renderLobby();
+      return;
+    }
+
     const res = $("resourcesSection");
     const log = $("logSection");
-    const lobbySection = $("lobbySection");
     const breachPanel = $("breachPanel");
     const buildingPanel = $("buildingPanel");
 
@@ -666,10 +689,14 @@
     }
 
     // Game phase - show game UI
-    lobbySection.classList.add("hidden"); // Hide lobby
-    info.classList.remove("hidden"); // Show game
+    lobbySection.classList.add("hidden");
+    info.classList.remove("hidden");
     res.classList.remove("hidden");
     log.classList.remove("hidden");
+    const gameTopbarGameId = $("gameTopbarGameId");
+    const gameTimer = $("gameTimer");
+    if (gameTopbarGameId) gameTopbarGameId.classList.add("hidden");
+    if (gameTimer) gameTimer.classList.remove("hidden");
     
     // Ensure board renders
     if (state.board) {
@@ -678,7 +705,7 @@
       console.warn("[game] Board not found in state, match may not have started");
       const boardEl = $("hexBoard");
       if (boardEl) {
-        boardEl.innerHTML = "<p style='text-align: center; color: var(--muted); padding: 40px;'>Board will be generated when game starts...</p>";
+        boardEl.innerHTML = "<p class=\"hex-board-placeholder\">Board will be generated when game starts…</p>";
       }
     }
     

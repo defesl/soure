@@ -7,85 +7,43 @@
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <div class="index-layout">
-    <aside class="index-sidebar">
-      <div class="brand">
-        <h1>Soure</h1>
-        <p>Strategy · Resources · Barbarians</p>
+  <div class="game-page">
+    <header class="game-topbar">
+      <div class="game-topbar-left">
+        <a href="/" class="game-back-btn" aria-label="Back to menu">← Back to Menu</a>
+        <span class="game-topbar-sep" aria-hidden="true">|</span>
+        <span id="gameTopbarGameId" class="game-topbar-gameid">Game ID: —</span>
+        <span id="gameTimer" class="game-timer hidden" aria-live="polite">Time: 00:00</span>
       </div>
-      <nav class="index-menu">
-        <a class="sidebar-tab active" href="/game">
-          <span class="tab-icon">🎮</span>
-          <span>Game</span>
-        </a>
-        <a class="sidebar-tab" href="#" onclick="alert('Coming soon'); return false;">
-          <span class="tab-icon">👥</span>
-          <span>Friends</span>
-        </a>
-        <a class="sidebar-tab" href="#" onclick="alert('Coming soon'); return false;">
-          <span class="tab-icon">📦</span>
-          <span>Resources</span>
-        </a>
-        <a class="sidebar-tab" href="#" onclick="alert('Coming soon'); return false;">
-          <span class="tab-icon">⚙️</span>
-          <span>Settings</span>
-        </a>
-      </nav>
-      <div style="margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border);">
-        <div style="margin-bottom: 8px; font-size: 0.85rem; color: var(--muted);" id="loginStatus">Loading…</div>
-        <a href="/login" id="loginLink" class="btn btn-primary hidden" style="width: 100%; margin-bottom: 8px;">Login</a>
-        <button type="button" class="btn btn-danger" id="logoutBtn" style="width: 100%;">Logout</button>
-      </div>
-    </aside>
-    <main class="index-main" style="padding: 0;">
-      <div class="game-container">
-        <header class="game-header">
-          <div class="left">
-            <a href="/">← Menu</a>
-            <span class="sep">|</span>
-            <span id="gameTimer" class="game-timer" style="font-size: 0.9rem; color: var(--muted);">Time: 00:00</span>
-          </div>
-        </header>
+    </header>
 
-    <!-- Rejoin Banner -->
-    <div class="rejoin-banner hidden" id="rejoinBanner">
-      <div class="rejoin-content">
-        <span class="rejoin-text">⚠️ You were disconnected. Rejoin your current game.</span>
-        <button type="button" class="btn btn-primary" id="rejoinBtn">Rejoin Game</button>
+    <div class="game-container">
+    <section class="game-lobby" id="lobbySection" aria-label="Lobby">
+      <div class="game-lobby-create" id="lobbyCreateJoin">
+        <button type="button" class="btn" id="createBtn" aria-label="Create a new game">Create Game</button>
+        <label for="joinInput" class="visually-hidden">Game ID to join</label>
+        <input type="text" class="input" id="joinInput" placeholder="Game ID" aria-label="Game ID to join" />
+        <button type="button" class="btn" id="joinBtn" aria-label="Join game">Join Game</button>
       </div>
-    </div>
-
-    <section class="game-section" id="lobbySection">
-      <h3>Lobby</h3>
-      <div class="game-actions">
-        <button type="button" class="btn" id="createBtn">Create Game</button>
-        <input type="text" class="input" id="joinInput" placeholder="Game ID" />
-        <button type="button" class="btn" id="joinBtn">Join Game</button>
-      </div>
-      <div id="lobbyPlayers" class="lobby-players hidden"></div>
-      <div id="lobbyGameId" class="lobby-game-id hidden" style="margin-top: 16px;">
-        <p style="margin: 0 0 8px 0; color: var(--muted); font-size: 0.9rem;">Game ID:</p>
-        <p style="margin: 0; font-size: 1.2rem; font-weight: 600; color: var(--accent); font-family: monospace;" id="lobbyGameIdText">—</p>
-      </div>
-      <div id="lobbyStartBtn" class="hidden" style="margin-top: 16px;">
-        <button type="button" class="btn btn-primary" id="startBtnLobby">Start Game</button>
+      <div class="game-lobby-room hidden" id="lobbyRoom">
+        <div class="game-lobby-slots" id="lobbyPlayers" role="list" aria-label="Player slots"></div>
+        <div class="game-lobby-start-wrap" id="lobbyStartBtn">
+          <button type="button" class="btn btn-lobby-start" id="startBtnLobby" aria-label="Start the game">Start Game</button>
+        </div>
       </div>
     </section>
 
     <section class="game-section hidden" id="gameInfoSection">
       <div class="game-layout-main">
-        <!-- Left: Player List + Stats -->
         <aside class="game-sidebar">
           <h3>Players</h3>
           <div id="playerList" class="player-list-detailed"></div>
         </aside>
 
-        <!-- Center: Board -->
         <div class="game-board-container">
           <div id="hexBoard" class="hex-board"></div>
         </div>
 
-        <!-- Right: Dice + Actions -->
         <aside class="game-actions-panel">
           <div class="dice-panel-inline">
             <div id="diceContainer" class="dice-container-inline">
@@ -102,13 +60,11 @@
         </aside>
       </div>
 
-      <!-- Breach Phase UI -->
       <div id="breachPanel" class="breach-panel hidden">
         <h3>Breach! Choose a tile to block:</h3>
         <div id="tileSelection" class="tile-selection"></div>
       </div>
 
-      <!-- Building Placement UI -->
       <div id="buildingPanel" class="building-panel hidden">
         <h3>Place Building</h3>
         <div class="building-options">
@@ -130,13 +86,10 @@
       <div class="event-log" id="eventLog"></div>
     </section>
 
-
-        <div class="error-msg hidden" id="errorEl" role="alert"></div>
-      </div>
-    </main>
+    <div class="error-msg hidden" id="errorEl" role="alert"></div>
+    </div>
   </div>
 
-  <!-- Bottom Inventory Bar -->
   <div class="inventory-bar hidden" id="inventoryBar">
     <div class="inventory-content">
       <span class="inventory-label">My Resources:</span>

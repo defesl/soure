@@ -7,81 +7,78 @@
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <div class="index-layout">
-    <aside class="index-sidebar">
-      <div class="brand">
-        <h1>Soure</h1>
-        <p>Strategy · Resources · Barbarians</p>
+  <div class="index-landing">
+    <div class="index-hero">
+      <h1 class="index-title">Soure</h1>
+      <p class="index-subtitle">Roll dice. Lose friends. Gain empire.</p>
+      <div class="index-pills">
+        <button type="button" class="index-pill" id="pillRules" aria-label="View Soure rules">Soure Rules</button>
+        <button type="button" class="index-pill" id="pillPeople" aria-label="About people">People can't be bought.</button>
       </div>
-      <nav class="index-menu">
-        <a class="sidebar-tab active" href="/game">
-          <span class="tab-icon">🎮</span>
-          <span>Game</span>
-        </a>
-        <a class="sidebar-tab" href="#" onclick="alert('Coming soon'); return false;">
-          <span class="tab-icon">👥</span>
-          <span>Friends</span>
-        </a>
-        <a class="sidebar-tab" href="#" onclick="alert('Coming soon'); return false;">
-          <span class="tab-icon">📦</span>
-          <span>Resources</span>
-        </a>
-        <a class="sidebar-tab" href="#" onclick="alert('Coming soon'); return false;">
-          <span class="tab-icon">⚙️</span>
-          <span>Settings</span>
-        </a>
-      </nav>
-      <div id="authButtons" class="auth-section" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
-        <a class="btn" href="/register" id="registerBtn" style="width: 100%; margin-bottom: 8px;">Register</a>
-        <a class="btn btn-primary" href="/login" id="loginBtn" style="width: 100%;">Login</a>
-      </div>
-      <div id="loggedInSection" class="auth-section hidden" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
-        <div id="userInfo" style="margin-bottom: 12px; font-size: 0.85rem; color: var(--muted);"></div>
-        <a class="btn btn-primary" href="/game" id="enterGameBtn" style="width: 100%;">Enter Game</a>
-      </div>
-      <div class="index-hint">
-        Create or join a game on the Game page. 1–4 players, resources, doubles, barbarians on 8.
-      </div>
-    </aside>
-    <main class="index-main">
-      <div class="index-center">
-        <h1 class="index-title">Soure</h1>
-        <p class="index-subtitle">
-          Roll dice. Lose friends. Gain empire.
-        </p>
-        <div class="index-chips">
-          <button type="button" class="chip" id="chipResources">Clay · Flint · Sand · Water · Cattle · People</button>
-          <button type="button" class="chip" id="chipDoubles">Doubles = Extra Turn</button>
-          <button type="button" class="chip" id="chipBarbarians">Barbarians on 8</button>
-        </div>
-      </div>
-    </main>
+    </div>
+
+    <nav class="index-tiles" aria-label="Main navigation">
+      <a href="/game" class="index-tile index-tile--game" id="tileGame" aria-label="Enter game lobby">Game</a>
+      <button type="button" class="index-tile index-tile--friends" id="tileFriends" aria-label="Friends">Friends</button>
+      <button type="button" class="index-tile index-tile--resources" id="tileResources" aria-label="Resources">Resources</button>
+      <button type="button" class="index-tile index-tile--settings" id="tileSettings" aria-label="Open settings">Settings</button>
+      <a href="/register" class="index-tile index-tile--register hidden" id="tileRegister" aria-label="Register">Register</a>
+      <a href="/login" class="index-tile index-tile--login hidden" id="tileLogin" aria-label="Log in">Login</a>
+    </nav>
+
+    <div id="loggedInCaption" class="index-logged-in hidden">
+      Logged in as: <span id="loggedInUsername"></span>
+    </div>
+
+    <div id="indexRejoinBanner" class="index-rejoin-banner hidden" role="status">
+      <span class="index-rejoin-text">You were disconnected. Rejoin your current game.</span>
+      <a href="#" class="btn btn-primary" id="indexRejoinBtn" aria-label="Rejoin your current game">Rejoin Game</a>
+    </div>
   </div>
+
+  <!-- Settings modal -->
+  <div id="settingsModal" class="index-modal hidden" aria-hidden="true">
+    <div class="index-modal-backdrop" id="settingsModalBackdrop"></div>
+    <div class="index-modal-panel">
+      <h2 class="index-modal-title">Settings</h2>
+      <section class="index-settings-account">
+        <h3>Account</h3>
+        <p id="settingsUsername" class="index-settings-username">—</p>
+        <p id="settingsSessionStatus" class="index-settings-muted">Session active</p>
+      </section>
+      <div class="index-modal-actions">
+        <button type="button" class="btn btn-danger" id="settingsLogoutBtn">Logout</button>
+        <button type="button" class="btn" id="settingsCloseBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     (function () {
       "use strict";
-      
+
       const $ = (id) => document.getElementById(id);
-      
+
       function showLoggedOut() {
-        const authButtons = $("authButtons");
-        const loggedInSection = $("loggedInSection");
-        if (authButtons) authButtons.classList.remove("hidden");
-        if (loggedInSection) loggedInSection.classList.add("hidden");
+        const tileLogin = $("tileLogin");
+        const tileRegister = $("tileRegister");
+        const caption = $("loggedInCaption");
+        if (tileLogin) tileLogin.classList.remove("hidden");
+        if (tileRegister) tileRegister.classList.remove("hidden");
+        if (caption) caption.classList.add("hidden");
       }
-      
+
       function showLoggedIn(user) {
-        const authButtons = $("authButtons");
-        const loggedInSection = $("loggedInSection");
-        const userInfo = $("userInfo");
-        
-        if (authButtons) authButtons.classList.add("hidden");
-        if (loggedInSection) loggedInSection.classList.remove("hidden");
-        if (userInfo && user) {
-          userInfo.textContent = "Logged in as: " + user.username;
-        }
+        const tileLogin = $("tileLogin");
+        const tileRegister = $("tileRegister");
+        const caption = $("loggedInCaption");
+        const usernameEl = $("loggedInUsername");
+        if (tileLogin) tileLogin.classList.add("hidden");
+        if (tileRegister) tileRegister.classList.add("hidden");
+        if (caption) caption.classList.remove("hidden");
+        if (usernameEl && user) usernameEl.textContent = user.username;
       }
-      
+
       function checkAuth() {
         fetch("/api/me", { credentials: "same-origin" })
           .then((r) => r.json())
@@ -97,9 +94,85 @@
             showLoggedOut();
           });
       }
-      
-      // Check auth on page load
+
+      function openSettingsModal() {
+        const modal = $("settingsModal");
+        const usernameEl = $("settingsUsername");
+        fetch("/api/me", { credentials: "same-origin" })
+          .then((r) => r.json())
+          .then((data) => {
+            if (data.ok && data.user) {
+              if (usernameEl) usernameEl.textContent = data.user.username;
+            } else {
+              if (usernameEl) usernameEl.textContent = "Not logged in";
+            }
+          })
+          .catch(() => { if (usernameEl) usernameEl.textContent = "—"; });
+        if (modal) {
+          modal.classList.remove("hidden");
+          modal.setAttribute("aria-hidden", "false");
+        }
+      }
+
+      function closeSettingsModal() {
+        const modal = $("settingsModal");
+        if (modal) {
+          modal.classList.add("hidden");
+          modal.setAttribute("aria-hidden", "true");
+        }
+      }
+
+      function doLogout() {
+        fetch("/api/logout", { method: "POST", credentials: "same-origin" })
+          .then(() => {
+            closeSettingsModal();
+            window.location.href = "/";
+          })
+          .catch((err) => {
+            console.error("[index] Logout failed:", err);
+            closeSettingsModal();
+            window.location.href = "/";
+          });
+      }
+
+      $("tileSettings").addEventListener("click", function (e) {
+        e.preventDefault();
+        openSettingsModal();
+      });
+
+      const friendsBtn = $("tileFriends");
+      if (friendsBtn) friendsBtn.addEventListener("click", () => alert("Coming soon"));
+
+      const resourcesBtn = $("tileResources");
+      if (resourcesBtn) resourcesBtn.addEventListener("click", () => alert("Coming soon"));
+
+      $("settingsModalBackdrop").addEventListener("click", closeSettingsModal);
+      $("settingsCloseBtn").addEventListener("click", closeSettingsModal);
+      $("settingsLogoutBtn").addEventListener("click", doLogout);
+
+      function checkRejoin() {
+        const stored = sessionStorage.getItem("rejoinGameId");
+        if (!stored) return;
+        fetch("/api/active-game", { credentials: "same-origin" })
+          .then((r) => r.json())
+          .then((data) => {
+            if (data.ok && data.gameId && data.gameId === stored) {
+              const banner = $("indexRejoinBanner");
+              const btn = $("indexRejoinBtn");
+              if (banner) banner.classList.remove("hidden");
+              if (btn) btn.href = "/play/" + data.gameId;
+            }
+          })
+          .catch(() => {});
+      }
+
+      const pillRules = $("pillRules");
+      if (pillRules) pillRules.addEventListener("click", () => alert("Coming soon"));
+      const pillPeople = $("pillPeople");
+      if (pillPeople) pillPeople.addEventListener("click", () => alert("Coming soon"));
+
       checkAuth();
+      checkRejoin();
     })();
   </script>
 </body>
