@@ -13,6 +13,11 @@ const games = new Map();
 /** @type {Map<string, string>} - userId -> activeGameId mapping */
 const userActiveGames = new Map();
 
+/** @type {Map<string, NodeJS.Timeout>} - gameId -> inactivity timeout handle (2 min after start if no roll) */
+const inactivityTimeoutHandles = new Map();
+
+const INACTIVITY_MS = 120000; // 2 minutes
+
 function generateGameId() {
   let id;
   do {
@@ -85,29 +90,65 @@ function joinGame(gameId, userId, username) {
 }
 
 /**
- * Get active game ID for a user
+ * Get active game ID for a user (only if game exists, user is member, and game not ended).
  * @param {string} userId
  * @returns {string | null}
  */
 function getActiveGameId(userId) {
   const gameId = userActiveGames.get(userId);
   if (!gameId) return null;
-  
-  // Verify game still exists and user is still a member
+
   const entry = games.get(gameId);
   if (!entry) {
     userActiveGames.delete(userId);
     return null;
   }
-  
+
   const state = entry.game.getState();
+  if (state.phase === "ended") {
+    userActiveGames.delete(userId);
+    return null;
+  }
   const isMember = state.players.some((p) => p.id === userId);
   if (!isMember) {
     userActiveGames.delete(userId);
     return null;
   }
-  
+
   return gameId;
+}
+
+/**
+ * Schedule inactivity auto-stop: if no dice roll within 2 min after game start, end game.
+ * @param {string} gameId
+ * @param {() => void} onEnd - called when game is ended (e.g. broadcast state).
+ */
+function scheduleInactivityTimeout(gameId, onEnd) {
+  clearInactivityTimeout(gameId);
+  const handle = setTimeout(() => {
+    inactivityTimeoutHandles.delete(gameId);
+    const entry = games.get(gameId);
+    if (!entry) return;
+    const state = entry.game.getState();
+    if (state.phase === "ended") return;
+    entry.game.endDueToInactivity();
+    state.players.forEach((p) => userActiveGames.delete(p.id));
+    if (typeof onEnd === "function") onEnd();
+    console.log("[gameStore] Game ended due to inactivity:", gameId);
+  }, INACTIVITY_MS);
+  inactivityTimeoutHandles.set(gameId, handle);
+}
+
+/**
+ * Clear inactivity timeout (e.g. when first dice roll happens).
+ * @param {string} gameId
+ */
+function clearInactivityTimeout(gameId) {
+  const handle = inactivityTimeoutHandles.get(gameId);
+  if (handle) {
+    clearTimeout(handle);
+    inactivityTimeoutHandles.delete(gameId);
+  }
 }
 
 module.exports = {
@@ -118,4 +159,6 @@ module.exports = {
   getGame,
   joinGame,
   getActiveGameId,
+  scheduleInactivityTimeout,
+  clearInactivityTimeout,
 };

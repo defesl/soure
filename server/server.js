@@ -12,6 +12,7 @@ const session = require("express-session");
 const FileStore = require("session-file-store")(session);
 const auth = require("./auth");
 const gameStore = require("./gameStore");
+const friendsRouter = require("./routes/friends");
 
 const app = express();
 const server = http.createServer(app);
@@ -71,6 +72,11 @@ app.get("/login", (_req, res) => {
 app.get("/game", (_req, res) => {
   res.sendFile(path.join(clientPath, "game.html"));
 });
+app.get("/friends", (_req, res) => {
+  res.sendFile(path.join(clientPath, "friends.html"));
+});
+
+app.use("/api/friends", friendsRouter);
 
 app.get("/play/:gameId", (req, res) => {
   res.sendFile(path.join(clientPath, "play.html"));
@@ -260,6 +266,7 @@ io.on("connection", (socket) => {
       socket.emit("error", { message: result.error });
       return;
     }
+    gameStore.scheduleInactivityTimeout(g, () => broadcastGameState(g));
     console.log("[socket] startMatch succeeded, broadcasting state");
     broadcastGameState(g);
     console.log("[socket] Match started:", g);
@@ -283,6 +290,7 @@ io.on("connection", (socket) => {
       socket.emit("error", { message: result.error });
       return;
     }
+    gameStore.clearInactivityTimeout(g);
     broadcastGameState(g);
     socket.emit("rollResult", result);
   });

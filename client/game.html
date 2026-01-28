@@ -19,10 +19,14 @@
 
     <div class="game-container">
     <section class="game-lobby" id="lobbySection" aria-label="Lobby">
-      <div class="game-lobby-create" id="lobbyCreateJoin">
-        <button type="button" class="btn" id="createBtn" aria-label="Create a new game">Create Game</button>
-        <label for="joinInput" class="visually-hidden">Game ID to join</label>
-        <input type="text" class="input" id="joinInput" placeholder="Game ID" aria-label="Game ID to join" />
+      <div id="gameEndedInactive" class="game-ended-inactive hidden" role="status">
+        <p class="game-ended-msg">Game ended (inactive — no dice roll within 2 minutes).</p>
+        <a href="/" class="btn btn-primary">Back to menu</a>
+      </div>
+      <div class="game-lobby-create lobby-toolbar" id="lobbyCreateJoin">
+        <label for="joinInput" class="lobby-toolbar-label">Game ID</label>
+        <input type="text" class="input lobby-toolbar-input" id="joinInput" placeholder="Enter Game ID" aria-label="Game ID to join" />
+        <button type="button" class="btn btn-primary" id="createBtn" aria-label="Create a new game">Create Game</button>
         <button type="button" class="btn" id="joinBtn" aria-label="Join game">Join Game</button>
       </div>
       <div class="game-lobby-room hidden" id="lobbyRoom">
@@ -40,8 +44,20 @@
           <div id="playerList" class="player-list-detailed"></div>
         </aside>
 
-        <div class="game-board-container">
-          <div id="hexBoard" class="hex-board"></div>
+        <div class="game-board-wrap">
+          <div class="soure-board" id="soureBoard" role="img" aria-label="Game board">
+            <div class="corner corner-tl" aria-hidden="true"></div>
+            <div class="corner corner-tr" aria-hidden="true"></div>
+            <div class="corner corner-bl" aria-hidden="true"></div>
+            <div class="corner corner-br" aria-hidden="true"></div>
+
+            <div class="track top" id="trackTop"></div>
+            <div class="track right" id="trackRight"></div>
+            <div class="track bottom" id="trackBottom"></div>
+            <div class="track left" id="trackLeft"></div>
+
+            <div class="board-center" id="boardCenter"></div>
+          </div>
         </div>
 
         <aside class="game-actions-panel">
@@ -71,7 +87,8 @@
           <button type="button" class="btn" data-building="outpost">Outpost (1 stone, 1 water) - 1 DP</button>
           <button type="button" class="btn" data-building="bastion">Bastion (1 iron, 1 food) - +1 Defense</button>
         </div>
-        <p class="building-hint">Select a building type, then click a tile on the board to place it</p>
+        <div id="buildingTileSelection" class="tile-selection building-tile-selection hidden" aria-label="Choose a tile to place building"></div>
+        <p class="building-hint">Select a building type, then choose a tile from the list.</p>
         <p class="building-hint" style="font-size: 0.75rem; margin-top: 4px;">Upgrades: Outpost → Citadel (2 stone, 2 food) → Capital (3 stone, 3 iron, 2 gold)</p>
       </div>
     </section>

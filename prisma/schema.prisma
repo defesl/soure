@@ -18,11 +18,13 @@ model User {
   createdAt    DateTime @default(now())
 
   // Relations for future use
-  matchesAsPlayer MatchPlayer[]
-  friendsAsUser   Friend[]      @relation("UserFriends")
-  friendsAsFriend Friend[]      @relation("FriendUsers")
-  createdMatches  Match[]        @relation("MatchCreator")
-  wonMatches      Match[]        @relation("MatchWinner")
+  matchesAsPlayer       MatchPlayer[]
+  createdMatches        Match[]        @relation("MatchCreator")
+  wonMatches            Match[]        @relation("MatchWinner")
+  friendRequestsSent    FriendRequest[] @relation("FriendRequestFrom")
+  friendRequestsReceived FriendRequest[] @relation("FriendRequestTo")
+  friendshipsAsA        Friendship[]    @relation("FriendshipUserA")
+  friendshipsAsB        Friendship[]    @relation("FriendshipUserB")
 
   @@map("users")
 }
@@ -53,16 +55,32 @@ model MatchPlayer {
   @@map("match_players")
 }
 
-model Friend {
-  id           String   @id @default(cuid())
-  userId       String
-  friendUserId String
-  status       String   @default("pending") // "pending" | "accepted"
-  createdAt    DateTime @default(now())
+// Friend request flow (Variant B): request -> accept -> friendship
+model FriendRequest {
+  id         String   @id @default(cuid())
+  fromUserId String
+  toUserId   String
+  status     String   @default("pending") // pending | accepted | rejected | canceled
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  user       User @relation("UserFriends", fields: [userId], references: [id], onDelete: Cascade)
-  friendUser User @relation("FriendUsers", fields: [friendUserId], references: [id], onDelete: Cascade)
+  fromUser User @relation("FriendRequestFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser   User @relation("FriendRequestTo", fields: [toUserId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, friendUserId])
-  @@map("friends")
+  @@unique([fromUserId, toUserId])
+  @@map("friend_requests")
+}
+
+// Normalized pair: userAId = min(a,b), userBId = max(a,b)
+model Friendship {
+  id        String   @id @default(cuid())
+  userAId   String
+  userBId   String
+  createdAt DateTime @default(now())
+
+  userA User @relation("FriendshipUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB User @relation("FriendshipUserB", fields: [userBId], references: [id], onDelete: Cascade)
+
+  @@unique([userAId, userBId])
+  @@map("friendships")
 }

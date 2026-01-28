@@ -3,19 +3,17 @@
 
   const RESOURCES = ["stone", "iron", "food", "water", "gold", "people"];
 
-  // Catan-style 3-4-5-4-3 hex layout: [row, col] for tile index 0..18
-  const HEX_GRID_LAYOUT = [
-    [0, 0], [0, 1], [0, 2],                           // row 0: 3 tiles
-    [1, 0], [1, 1], [1, 2], [1, 3],                    // row 1: 4
-    [2, 0], [2, 1], [2, 2], [2, 3], [2, 4],           // row 2: 5
-    [3, 0], [3, 1], [3, 2], [3, 3],                    // row 3: 4
-    [4, 0], [4, 1], [4, 2]                             // row 4: 3
-  ];
-
   let user = null;
   let socket = null;
   let state = null;
   const REJOIN_STORAGE_KEY = "rejoinGameId";
+  /**
+   * Reconnect flow / lastGameId:
+   * - lastGameId is stored in localStorage (key LAST_GAME_ID_KEY) when: create game success, join game success, or gameState received with phase !== "lobby".
+   * - Main menu shows "Reconnect" button only when GET /api/active-game returns ok + gameId (server validates game exists and user is a member).
+   * - Clicking Reconnect navigates to /play/{gameId}; play page uses rejoinGame socket to rejoin. Cleared when game ends (clearRejoinGameId).
+   */
+  const LAST_GAME_ID_KEY = "lastGameId";
 
   const $ = (id) => document.getElementById(id);
 
@@ -166,12 +164,31 @@
     }
   }
 
+  function showGameEndedInactive() {
+    const endedEl = $("gameEndedInactive");
+    const createJoin = $("lobbyCreateJoin");
+    const room = $("lobbyRoom");
+    if (endedEl) endedEl.classList.remove("hidden");
+    if (createJoin) createJoin.classList.add("hidden");
+    if (room) room.classList.add("hidden");
+  }
+
+  function hideGameEndedInactive() {
+    const endedEl = $("gameEndedInactive");
+    if (endedEl) endedEl.classList.add("hidden");
+  }
+
   function getRejoinGameId() {
     return sessionStorage.getItem(REJOIN_STORAGE_KEY);
   }
 
   function clearRejoinGameId() {
     sessionStorage.removeItem(REJOIN_STORAGE_KEY);
+    try { localStorage.removeItem(LAST_GAME_ID_KEY); } catch (_) {}
+  }
+
+  function setLastGameId(gameId) {
+    try { if (gameId) localStorage.setItem(LAST_GAME_ID_KEY, gameId); } catch (_) {}
   }
 
   const logoutBtn = $("logoutBtn");
@@ -217,10 +234,10 @@
         return;
       }
       state = s;
+      if (s.gameId && s.phase !== "lobby") setLastGameId(s.gameId);
       console.log("[game] Updating state, calling renderState");
       console.log("[game] Current player resources:", s.resources && user ? s.resources[user.id] : "N/A");
       renderState();
-      // Force re-render inventory to ensure resources are updated
       renderInventory();
     });
 
@@ -230,16 +247,16 @@
         showError(r.error || "Create game failed");
       } else {
         console.log("[game] Game created successfully, gameId:", r.gameId);
-        // Hide rejoin banner when creating a new game
+        setLastGameId(r.gameId);
         clearRejoinGameId();
         hideRejoinBanner();
-        // The gameState event will handle the UI update
         showError(""); // Clear any errors
       }
     });
 
     socket.on("joinGameResult", (r) => {
       if (!r.ok) showError(r.error || "Join game failed");
+      else if (r.ok && r.gameId) setLastGameId(r.gameId);
     });
 
     socket.on("rollResult", (result) => {
@@ -298,6 +315,7 @@
     const gameTimer = $("gameTimer");
 
     if (!lobbySection) return;
+    if (state?.phase === "ended") return;
 
     if (!inGame() || state?.phase !== "lobby") {
       if (lobbyCreateJoin) lobbyCreateJoin.classList.remove("hidden");
@@ -385,85 +403,54 @@
     }
   }
 
+  const TRACK_PLACEHOLDER_LABELS = ["Stone", "Water", "Food", "Gold", "Iron", "People"];
+
   function renderBoard() {
-    const boardEl = $("hexBoard");
-    if (!boardEl) {
-      console.warn("[game] hexBoard element not found");
-      return;
-    }
-    if (!state.board) {
-      console.warn("[game] Board not generated yet");
-      boardEl.innerHTML = "<p class=\"hex-board-placeholder\">Board will be generated when game starts…</p>";
-      return;
-    }
+    const trackTop = $("trackTop");
+    const trackRight = $("trackRight");
+    const trackBottom = $("trackBottom");
+    const trackLeft = $("trackLeft");
+    const boardCenter = $("boardCenter");
+    if (!trackTop || !trackRight || !trackBottom || !trackLeft) return;
 
-    const typeColors = {
-      stone: "#8b8ba3",
-      iron: "#6b7280",
-      food: "#10b981",
-      water: "#3b82f6",
-      gold: "#f59e0b",
-      people: "#ec4899",
-      grandBazaar: "#a78bfa",
-      market: "#a78bfa"
-    };
-
-    function typeLabel(type) {
-      if (type === "grandBazaar" || type === "market") return "Grand Bazaar";
-      return type[0].toUpperCase() + type.slice(1);
+    function createSlot(index, label, meta, extraClasses) {
+      const slot = document.createElement("div");
+      slot.className = "track-slot" + (extraClasses ? " " + extraClasses : "");
+      slot.dataset.index = String(index);
+      const labelEl = document.createElement("div");
+      labelEl.className = "slot-label";
+      labelEl.textContent = label;
+      const metaEl = document.createElement("div");
+      metaEl.className = "slot-meta";
+      metaEl.textContent = meta || "";
+      slot.appendChild(labelEl);
+      slot.appendChild(metaEl);
+      return slot;
     }
 
-    boardEl.innerHTML = "";
-    const tilesById = state.board.tiles.reduce((acc, t) => { acc[t.id] = t; return acc; }, {});
-
-    for (let id = 0; id < 19; id++) {
-      const tile = tilesById[id];
-      if (!tile) continue;
-      const [row, col] = HEX_GRID_LAYOUT[id];
-
-      const hex = document.createElement("div");
-      hex.className = "hex-tile";
-      hex.dataset.tileId = String(tile.id);
-      hex.style.gridRow = String(row + 1);
-      hex.style.gridColumn = String(col + 1);
-      hex.style.backgroundColor = typeColors[tile.type] || "#1a1a1f";
-
-      if (tile.id === state.board.blockedTileId) hex.classList.add("blocked");
-
-      const typeLabelEl = document.createElement("div");
-      typeLabelEl.className = "hex-type";
-      typeLabelEl.textContent = typeLabel(tile.type);
-      hex.appendChild(typeLabelEl);
-
-      if (tile.number != null && tile.type !== "grandBazaar" && tile.type !== "market") {
-        const numberEl = document.createElement("div");
-        numberEl.className = "hex-number";
-        numberEl.textContent = String(tile.number);
-        hex.appendChild(numberEl);
+    function fillTrack(container, count, startIndex) {
+      container.innerHTML = "";
+      for (let i = 0; i < count; i++) {
+        const idx = startIndex + i;
+        const label = TRACK_PLACEHOLDER_LABELS[idx % TRACK_PLACEHOLDER_LABELS.length];
+        const meta = (idx % 6) === 0 ? "" : "";
+        container.appendChild(createSlot(idx, label, meta));
       }
+    }
 
-      const buildingsEl = document.createElement("div");
-      buildingsEl.className = "hex-buildings";
-      (tile.buildings || []).forEach((building) => {
-        const buildingEl = document.createElement("div");
-        buildingEl.className = "building building-" + building.type;
-        buildingEl.title = building.type;
-        const player = state.players.find(p => p.id === building.playerId);
-        buildingEl.textContent = player ? getInitials(player.name) : "";
-        buildingsEl.appendChild(buildingEl);
-      });
-      hex.appendChild(buildingsEl);
+    fillTrack(trackTop, 7, 0);
+    fillTrack(trackRight, 4, 7);
+    fillTrack(trackBottom, 7, 11);
+    fillTrack(trackLeft, 4, 18);
 
-      if (state.phase === "main" && isCurrentPlayer() && selectedBuildingType) {
-        hex.classList.add("clickable");
-        hex.addEventListener("click", () => {
-          socket.emit("placeBuilding", { tileId: tile.id, buildingType: selectedBuildingType });
-          selectedBuildingType = null;
-          renderBuildingPanel();
-        });
+    if (boardCenter) {
+      boardCenter.textContent = "";
+      if (!state.board) {
+        const p = document.createElement("p");
+        p.className = "board-center-placeholder";
+        p.textContent = "Grand Bazaar";
+        boardCenter.appendChild(p);
       }
-
-      boardEl.appendChild(hex);
     }
   }
 
@@ -582,13 +569,11 @@
   function renderBreachPanel() {
     const breachPanel = $("breachPanel");
     const tileSelection = $("tileSelection");
-    
-    // MVP: Blocking is automatic, always hide the panel
     if (breachPanel) breachPanel.classList.add("hidden");
     if (!tileSelection) return;
-    
     tileSelection.innerHTML = "";
-    
+    if (!state.board || !state.board.tiles) return;
+
     state.board.tiles.forEach((tile) => {
       if (tile.type === "grandBazaar" || tile.type === "market") return;
 
@@ -608,16 +593,16 @@
 
   function renderBuildingPanel() {
     const buildingPanel = $("buildingPanel");
+    const tileSelection = $("buildingTileSelection");
     if (!buildingPanel) return;
-    
+
     if (state.phase !== "main" || !isCurrentPlayer()) {
       buildingPanel.classList.add("hidden");
       return;
     }
-    
+
     buildingPanel.classList.remove("hidden");
-    
-    // Update button states
+
     const buttons = buildingPanel.querySelectorAll("[data-building]");
     buttons.forEach(btn => {
       btn.classList.remove("selected");
@@ -633,12 +618,37 @@
         renderBuildingPanel();
       };
     });
+
+    if (tileSelection) {
+      tileSelection.innerHTML = "";
+      if (selectedBuildingType && state.board && state.board.tiles) {
+        const resourceTiles = state.board.tiles.filter(t =>
+          t.type !== "grandBazaar" && t.type !== "market" && RESOURCES.indexOf(t.type) >= 0
+        );
+        resourceTiles.forEach((tile) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "btn tile-select-btn";
+          btn.textContent = `Tile ${tile.id} (${tile.type}${tile.number != null ? ", " + tile.number : ""})`;
+          btn.addEventListener("click", () => {
+            socket.emit("placeBuilding", { tileId: tile.id, buildingType: selectedBuildingType });
+            selectedBuildingType = null;
+            renderBuildingPanel();
+          });
+          tileSelection.appendChild(btn);
+        });
+        tileSelection.classList.remove("hidden");
+      } else {
+        tileSelection.classList.add("hidden");
+      }
+    }
   }
 
   function renderState() {
     const info = $("gameInfoSection");
     const lobbySection = $("lobbySection");
     if (!state) {
+      hideGameEndedInactive();
       if (lobbySection) lobbySection.classList.remove("hidden");
       if (info) info.classList.add("hidden");
       renderLobby();
@@ -656,6 +666,7 @@
     }
 
     if (!inGame()) {
+      hideGameEndedInactive();
       console.log("[game] Not in game, showing create/join section");
       if (lobbySection) lobbySection.classList.remove("hidden");
       if (info) info.classList.add("hidden");
@@ -673,6 +684,7 @@
 
     // Render lobby if in lobby phase
     if (state.phase === "lobby") {
+      hideGameEndedInactive();
       console.log("[game] Rendering lobby phase");
       if (lobbySection) lobbySection.classList.remove("hidden");
       if (info) info.classList.add("hidden");
@@ -683,12 +695,24 @@
       renderLobby();
       renderInventory();
       stopTimer();
-      // Check for active game in lobby
       checkActiveGame();
       return;
     }
 
+    // Game ended (e.g. inactivity auto-stop)
+    if (state.phase === "ended") {
+      clearRejoinGameId();
+      if (lobbySection) lobbySection.classList.remove("hidden");
+      if (info) info.classList.add("hidden");
+      showGameEndedInactive();
+      renderLobby();
+      renderInventory();
+      stopTimer();
+      return;
+    }
+
     // Game phase - show game UI
+    hideGameEndedInactive();
     lobbySection.classList.add("hidden");
     info.classList.remove("hidden");
     res.classList.remove("hidden");
@@ -698,16 +722,7 @@
     if (gameTopbarGameId) gameTopbarGameId.classList.add("hidden");
     if (gameTimer) gameTimer.classList.remove("hidden");
     
-    // Ensure board renders
-    if (state.board) {
-      renderBoard();
-    } else {
-      console.warn("[game] Board not found in state, match may not have started");
-      const boardEl = $("hexBoard");
-      if (boardEl) {
-        boardEl.innerHTML = "<p class=\"hex-board-placeholder\">Board will be generated when game starts…</p>";
-      }
-    }
+    renderBoard();
     
     renderPlayers();
     renderDice();

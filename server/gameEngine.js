@@ -198,6 +198,17 @@ class SoureGame {
   }
 
   /**
+   * End game due to inactivity (no dice roll within 2 min after start).
+   * Called by gameStore when inactivity timeout fires.
+   */
+  endDueToInactivity() {
+    if (this.phase === "ended") return;
+    this.phase = "ended";
+    addToLog(this.eventLog, "Game ended (inactive — no dice roll within 2 minutes).");
+    console.log("[gameEngine] Game ended due to inactivity:", this.gameId);
+  }
+
+  /**
    * @param {string} userId
    * @param {number} tileId
    * @param {string} buildingType

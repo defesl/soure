@@ -19,9 +19,10 @@
 
     <nav class="index-tiles" aria-label="Main navigation">
       <a href="/game" class="index-tile index-tile--game" id="tileGame" aria-label="Enter game lobby">Game</a>
-      <button type="button" class="index-tile index-tile--friends" id="tileFriends" aria-label="Friends">Friends</button>
+      <a href="/friends" class="index-tile index-tile--friends" id="tileFriends" aria-label="Friends">Friends</a>
       <button type="button" class="index-tile index-tile--resources" id="tileResources" aria-label="Resources">Resources</button>
       <button type="button" class="index-tile index-tile--settings" id="tileSettings" aria-label="Open settings">Settings</button>
+      <a href="#" class="index-tile index-tile--reconnect hidden" id="tileReconnect" aria-label="Reconnect to your game">Reconnect</a>
       <a href="/register" class="index-tile index-tile--register hidden" id="tileRegister" aria-label="Register">Register</a>
       <a href="/login" class="index-tile index-tile--login hidden" id="tileLogin" aria-label="Log in">Login</a>
     </nav>
@@ -140,9 +141,6 @@
         openSettingsModal();
       });
 
-      const friendsBtn = $("tileFriends");
-      if (friendsBtn) friendsBtn.addEventListener("click", () => alert("Coming soon"));
-
       const resourcesBtn = $("tileResources");
       if (resourcesBtn) resourcesBtn.addEventListener("click", () => alert("Coming soon"));
 
@@ -150,20 +148,43 @@
       $("settingsCloseBtn").addEventListener("click", closeSettingsModal);
       $("settingsLogoutBtn").addEventListener("click", doLogout);
 
+      // Reconnect: show only when server says user has an active rejoinable game (not just localStorage).
+      // lastGameId is stored in localStorage when user creates/joins/starts a game (see game.js).
       function checkRejoin() {
-        const stored = sessionStorage.getItem("rejoinGameId");
-        if (!stored) return;
         fetch("/api/active-game", { credentials: "same-origin" })
           .then((r) => r.json())
           .then((data) => {
-            if (data.ok && data.gameId && data.gameId === stored) {
-              const banner = $("indexRejoinBanner");
-              const btn = $("indexRejoinBtn");
-              if (banner) banner.classList.remove("hidden");
-              if (btn) btn.href = "/play/" + data.gameId;
+            if (!data.ok || !data.gameId) {
+              hideReconnectTile();
+              return;
+            }
+            const gameId = data.gameId;
+            const banner = $("indexRejoinBanner");
+            const rejoinBtn = $("indexRejoinBtn");
+            if (banner) banner.classList.remove("hidden");
+            if (rejoinBtn) rejoinBtn.href = "/play/" + gameId;
+
+            const tileReconnect = $("tileReconnect");
+            if (tileReconnect) {
+              tileReconnect.href = "/play/" + gameId;
+              tileReconnect.classList.remove("hidden");
+              applyReconnectPosition(tileReconnect);
             }
           })
-          .catch(() => {});
+          .catch(() => { hideReconnectTile(); });
+      }
+
+      function hideReconnectTile() {
+        const tileReconnect = $("tileReconnect");
+        if (tileReconnect) tileReconnect.classList.add("hidden");
+      }
+
+      // Random but safe position: one of 4 predefined positions (no overlap with other tiles).
+      function applyReconnectPosition(el) {
+        const positions = ["index-tile--reconnect-1", "index-tile--reconnect-2", "index-tile--reconnect-3", "index-tile--reconnect-4"];
+        positions.forEach((c) => el.classList.remove(c));
+        const idx = Math.floor(Math.random() * positions.length);
+        el.classList.add(positions[idx]);
       }
 
       const pillRules = $("pillRules");

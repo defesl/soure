@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Soure — Friends</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="friends-page">
+    <header class="friends-header">
+      <a href="/" class="friends-back" aria-label="Back to menu">← Back to menu</a>
+      <h1 class="friends-title">Friends</h1>
+    </header>
+
+    <div id="friendsLoginRequired" class="friends-login-required hidden">
+      <p>Please log in to use Friends.</p>
+      <a href="/login" class="btn btn-primary">Log in</a>
+    </div>
+
+    <div id="friendsContent" class="friends-content hidden">
+      <!-- 1) Add Friend -->
+      <section class="friends-section" aria-label="Add friend">
+        <h2 class="friends-section-title">Add Friend</h2>
+        <div class="friends-add-wrap">
+          <label for="friendUsername" class="visually-hidden">Username to add</label>
+          <input type="text" id="friendUsername" class="input friends-input" placeholder="Enter username" autocomplete="username" />
+          <button type="button" class="btn btn-primary" id="sendRequestBtn">Send Request</button>
+        </div>
+        <p id="friendsAddMessage" class="friends-message hidden" role="status"></p>
+      </section>
+
+      <!-- 2) Incoming Requests -->
+      <section class="friends-section" aria-label="Incoming requests">
+        <h2 class="friends-section-title">Incoming Requests</h2>
+        <div id="incomingList" class="friends-list"></div>
+        <p id="incomingEmpty" class="friends-empty hidden">No incoming requests</p>
+      </section>
+
+      <!-- 3) Outgoing Requests -->
+      <section class="friends-section" aria-label="Outgoing requests">
+        <h2 class="friends-section-title">Outgoing Requests</h2>
+        <div id="outgoingList" class="friends-list"></div>
+        <p id="outgoingEmpty" class="friends-empty hidden">No outgoing requests</p>
+      </section>
+
+      <!-- 4) Friends List -->
+      <section class="friends-section" aria-label="Friends list">
+        <h2 class="friends-section-title">Friends List</h2>
+        <div id="friendsList" class="friends-list"></div>
+        <p id="friendsListEmpty" class="friends-empty hidden">No friends yet</p>
+      </section>
+    </div>
+  </div>
+  <script src="/friends.js"></script>
+</body>
+</html>
