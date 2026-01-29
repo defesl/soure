@@ -18,10 +18,10 @@ const TRACK_RAW = [
   { id: "bottom-2", domId: "cell-bottom-2" },
   { id: "bottom-1", domId: "cell-bottom-1" },
   { id: "bottom-0", domId: "cell-bottom-0" },
-  { id: "left-3", domId: "cell-left-3" },
-  { id: "left-2", domId: "cell-left-2" },
-  { id: "left-1", domId: "cell-left-1" },
   { id: "left-0", domId: "cell-left-0" },
+  { id: "left-1", domId: "cell-left-1" },
+  { id: "left-2", domId: "cell-left-2" },
+  { id: "left-3", domId: "cell-left-3" },
 ];
 
 let resourceSlotIndex = 0;

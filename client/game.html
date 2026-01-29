@@ -48,10 +48,10 @@
           <main class="hud-center" aria-label="Board">
             <div id="boardContainer" class="board-container">
               <div class="soure-board" id="soureBoard" role="img" aria-label="Game board">
-                <div id="corner-tl" class="corner corner-tl" aria-hidden="true"></div>
-                <div id="corner-tr" class="corner corner-tr" aria-hidden="true"></div>
-                <div id="corner-bl" class="corner corner-bl" aria-hidden="true"></div>
-                <div id="corner-br" class="corner corner-br" aria-hidden="true"></div>
+                <div id="corner-tl" class="corner track-field track-corner corner-tl" data-corner-id="TL" aria-hidden="true"></div>
+                <div id="corner-tr" class="corner track-field track-corner corner-tr" data-corner-id="TR" aria-hidden="true"></div>
+                <div id="corner-bl" class="corner track-field track-corner corner-bl" data-corner-id="BL" aria-hidden="true"></div>
+                <div id="corner-br" class="corner track-field track-corner corner-br" data-corner-id="BR" aria-hidden="true"></div>
 
                 <div class="track top" id="trackTop"></div>
                 <div class="track right" id="trackRight"></div>
@@ -108,7 +108,6 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="/track.js"></script>
   <script src="/game.js"></script>
 </body>
 </html>

@@ -249,6 +249,8 @@ io.on("connection", (socket) => {
     // Rejoin the room and send current state
     socket.join(`game:${gameId}`);
     const { entry } = validation;
+    const player = entry.game.players.find((p) => p.id === userId);
+    console.log("[RECONNECT]", userId, "positionIndex still =", player?.positionIndex);
     const state = entry.game.getState();
     socket.emit("gameState", state);
     socket.emit("rejoinGameResult", { ok: true, gameId });
@@ -304,6 +306,24 @@ io.on("connection", (socket) => {
       return;
     }
     const { entry } = validation;
+    const oldIndex = entry.game.positionIndexByPlayerId[userId] ?? 0;
+    console.log(
+      "[ROLL_IN]",
+      "ts",
+      Date.now(),
+      "socketId",
+      socket.id,
+      "gameId",
+      g,
+      "playerId",
+      userId,
+      "turnSeq",
+      entry.game.turnSeq,
+      "oldIndex",
+      oldIndex,
+      "N",
+      entry.game.getState().track.length
+    );
     const result = entry.game.rollDice(userId);
     if (!result.ok) {
       socket.emit("error", { message: result.error });
@@ -312,6 +332,8 @@ io.on("connection", (socket) => {
     gameStore.clearInactivityTimeout(g);
     broadcastGameState(g);
     socket.emit("rollResult", result);
+    const newIndex = entry.game.positionIndexByPlayerId[userId];
+    console.log("[ROLL_OUT]", "ts", Date.now(), "newIndex", newIndex);
   });
 
   socket.on("placeBuilding", (payload) => {

@@ -16,6 +16,128 @@
   const LAST_GAME_ID_KEY = "lastGameId";
 
   const $ = (id) => document.getElementById(id);
+  const DEBUG_BADGE_ID = "trackDebugBadge";
+  const DEBUG_STYLE_ID = "trackDebugStyle";
+  const DEBUG_INVALID_ID = "trackInvalidWarning";
+  const DEBUG_CORNER_INVALID_ID = "cornerInvalidWarning";
+  const LANDED_HIGHLIGHT_CLASS = "landed-highlight";
+
+  function isDebugUI() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("debug") === "1") return true;
+      return localStorage.getItem("DEBUG_UI") === "1";
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function ensureDebugStyles() {
+    if (document.getElementById(DEBUG_STYLE_ID)) return;
+    const style = document.createElement("style");
+    style.id = DEBUG_STYLE_ID;
+    style.textContent = `
+      .${LANDED_HIGHLIGHT_CLASS} {
+        outline: 2px solid var(--accent);
+        box-shadow: 0 0 12px var(--accent-glow-strong);
+      }
+      .debug-ui-hidden {
+        display: none !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function ensureDebugWarning() {
+    let el = document.getElementById(DEBUG_INVALID_ID);
+    if (!el) {
+      el = document.createElement("div");
+      el.id = DEBUG_INVALID_ID;
+      el.style.position = "fixed";
+      el.style.top = "8px";
+      el.style.left = "8px";
+      el.style.zIndex = "9999";
+      el.style.padding = "6px 10px";
+      el.style.background = "rgba(239, 68, 68, 0.2)";
+      el.style.border = "1px solid rgba(239, 68, 68, 0.5)";
+      el.style.color = "#fca5a5";
+      el.style.fontSize = "12px";
+      el.style.borderRadius = "8px";
+      el.style.display = "none";
+      el.classList.add("debug-ui");
+      if (!isDebugUI()) el.classList.add("debug-ui-hidden");
+      el.textContent = "TRACK INVALID";
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+
+  function setDebugWarningVisible(visible) {
+    if (!isDebugUI()) return;
+    const el = ensureDebugWarning();
+    el.style.display = visible ? "block" : "none";
+  }
+
+  function ensureCornerDebugWarning() {
+    let el = document.getElementById(DEBUG_CORNER_INVALID_ID);
+    if (!el) {
+      el = document.createElement("div");
+      el.id = DEBUG_CORNER_INVALID_ID;
+      el.style.position = "fixed";
+      el.style.top = "32px";
+      el.style.left = "8px";
+      el.style.zIndex = "9999";
+      el.style.padding = "6px 10px";
+      el.style.background = "rgba(239, 68, 68, 0.2)";
+      el.style.border = "1px solid rgba(239, 68, 68, 0.5)";
+      el.style.color = "#fca5a5";
+      el.style.fontSize = "12px";
+      el.style.borderRadius = "8px";
+      el.style.display = "none";
+      el.classList.add("debug-ui");
+      if (!isDebugUI()) el.classList.add("debug-ui-hidden");
+      el.textContent = "CORNER INVALID";
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+
+  function setCornerDebugWarningVisible(visible) {
+    if (!isDebugUI()) return;
+    const el = ensureCornerDebugWarning();
+    el.style.display = visible ? "block" : "none";
+  }
+
+  function ensureDebugBadge() {
+    let el = document.getElementById(DEBUG_BADGE_ID);
+    if (!el) {
+      el = document.createElement("div");
+      el.id = DEBUG_BADGE_ID;
+      el.style.position = "fixed";
+      el.style.top = "40px";
+      el.style.left = "8px";
+      el.style.zIndex = "9999";
+      el.style.padding = "6px 10px";
+      el.style.background = "rgba(0, 0, 0, 0.6)";
+      el.style.border = "1px solid var(--border)";
+      el.style.color = "var(--text)";
+      el.style.fontSize = "12px";
+      el.style.borderRadius = "8px";
+      el.style.whiteSpace = "pre";
+      el.classList.add("debug-ui");
+      if (!isDebugUI()) el.classList.add("debug-ui-hidden");
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+
+  function applyDebugVisibility() {
+    const debugEls = document.querySelectorAll(".debug-ui");
+    debugEls.forEach((el) => {
+      if (isDebugUI()) el.classList.remove("debug-ui-hidden");
+      else el.classList.add("debug-ui-hidden");
+    });
+  }
 
   function diceImgSrc(v) {
     return `/assets/dice/dice-${v}.png`;
@@ -202,8 +324,24 @@
     });
   }
 
+  let rollPending = false;
+
+  function setRollPending(isPending) {
+    rollPending = isPending;
+    const rollBtn = $("rollBtn");
+    if (rollBtn) rollBtn.disabled = isPending;
+  }
+
   function connectSocket() {
+    if (socket) return;
     socket = io({ withCredentials: true });
+    socket.off("connect");
+    socket.off("connect_error");
+    socket.off("error");
+    socket.off("gameState");
+    socket.off("createGameResult");
+    socket.off("joinGameResult");
+    socket.off("rollResult");
 
     socket.on("connect", () => {
       console.log("[game] Socket connected, id:", socket.id);
@@ -214,6 +352,7 @@
       console.error("[game] Socket connect_error:", error);
       const errorMsg = "Connection failed. " + (error.message || "Ensure you are logged in and try refreshing the page.");
       showError(errorMsg);
+      setRollPending(false);
       // On mobile, this might be a session issue - show more helpful message
       if (navigator.userAgent.match(/Mobile|Android|iPhone|iPad/)) {
         console.error("[game] Mobile connection error - possible session/cookie issue");
@@ -223,6 +362,7 @@
 
     socket.on("error", (payload) => {
       showError(payload.message || "Error");
+      setRollPending(false);
     });
 
     socket.on("gameState", (s) => {
@@ -234,11 +374,18 @@
         return;
       }
       state = s;
+      setRollPending(false);
+      const me = s.players?.find((p) => p.id === user?.id);
+      if (me) {
+        console.log("[CLIENT_RENDER_POS]", me.id, "rendering positionIndex =", me.positionIndex);
+      }
+      console.log("[STATE_POS]", s.currentTurnPlayerId, "positionIndex", s.positionIndexByPlayerId?.[s.currentTurnPlayerId]);
       if (s.gameId && s.phase !== "lobby") setLastGameId(s.gameId);
       console.log("[game] Updating state, calling renderState");
       console.log("[game] Current player resources:", s.resources && user ? s.resources[user.id] : "N/A");
       renderState();
       renderInventory();
+      schedulePlacement();
     });
 
     socket.on("createGameResult", (r) => {
@@ -261,6 +408,7 @@
 
     socket.on("rollResult", (result) => {
       console.log("[game] rollResult received:", result);
+      setRollPending(false);
       const dice1 = $("dice1");
       const dice2 = $("dice2");
       if (dice1 && dice2) {
@@ -424,10 +572,11 @@
 
     function createSlot(index, label, meta, domId, extraClasses) {
       const slot = document.createElement("div");
-      slot.className = "track-slot track-tile" + (extraClasses ? " " + extraClasses : "");
+      slot.className = "track-slot track-field track-resource" + (extraClasses ? " " + extraClasses : "");
       slot.id = domId;
       slot.dataset.index = String(index);
-      slot.setAttribute("data-tile-index", String(index));
+      slot.setAttribute("data-track-index", String(index));
+      slot.setAttribute("data-kind", "resource");
       const labelEl = document.createElement("div");
       labelEl.className = "slot-label";
       labelEl.textContent = label;
@@ -453,7 +602,20 @@
     fillTrack(trackTop, ["cell-top-0", "cell-top-1", "cell-top-2", "cell-top-3", "cell-top-4", "cell-top-5", "cell-top-6"]);
     fillTrack(trackRight, ["cell-right-0", "cell-right-1", "cell-right-2", "cell-right-3"]);
     fillTrack(trackBottom, ["cell-bottom-6", "cell-bottom-5", "cell-bottom-4", "cell-bottom-3", "cell-bottom-2", "cell-bottom-1", "cell-bottom-0"]);
-    fillTrack(trackLeft, ["cell-left-3", "cell-left-2", "cell-left-1", "cell-left-0"]);
+    fillTrack(trackLeft, ["cell-left-0", "cell-left-1", "cell-left-2", "cell-left-3"]);
+
+    track.forEach((field) => {
+      if (field.kind !== "corner") return;
+      const el = document.getElementById(field.domId);
+      if (!el) return;
+      el.classList.add("track-field", "track-corner");
+      el.setAttribute("data-track-index", String(field.index));
+      el.setAttribute("data-kind", "corner");
+      if (field.cornerId) el.setAttribute("data-corner-id", field.cornerId);
+    });
+
+    ensureDebugStyles();
+    runTrackAudit("renderBoard");
 
     if (boardCenter) {
       boardCenter.textContent = "";
@@ -471,10 +633,90 @@
    * TRACK order comes from server/track.js. Tokens at same cell get a 2x2 grid offset.
    */
   function getTileElByIndex(i) {
-    return document.querySelector(`.track-tile[data-tile-index="${i}"]`);
+    return document.querySelector(`.track-field[data-track-index="${i}"]`);
   }
 
-  function renderTokens() {
+  function runTrackAudit(source) {
+    const fields = Array.from(document.querySelectorAll(".track-field[data-track-index]"));
+    const indices = fields
+      .map((el) => Number(el.getAttribute("data-track-index")))
+      .filter((n) => Number.isInteger(n))
+      .sort((a, b) => a - b);
+    const seen = new Map();
+    indices.forEach((idx) => {
+      seen.set(idx, (seen.get(idx) || 0) + 1);
+    });
+    const duplicates = [];
+    const missing = [];
+    for (let i = 0; i < 26; i += 1) {
+      if (!seen.has(i)) missing.push(i);
+      if (seen.get(i) > 1) duplicates.push(i);
+    }
+    const min = indices.length ? indices[0] : null;
+    const max = indices.length ? indices[indices.length - 1] : null;
+    const uniqueCount = seen.size;
+    const invalid = fields.length !== 26 || uniqueCount !== 26 || min !== 0 || max !== 25 || duplicates.length > 0 || missing.length > 0;
+    if (invalid) {
+      console.error("[TRACK_INVALID]", {
+        count: fields.length,
+        unique: uniqueCount,
+        min,
+        max,
+        indices,
+        duplicates,
+        missing
+      });
+    }
+    setDebugWarningVisible(invalid);
+    const cornerEls = Array.from(document.querySelectorAll(".track-field.track-corner[data-track-index]"));
+    const cornerIdxs = cornerEls.map((el) => Number(el.dataset.trackIndex)).filter((n) => Number.isInteger(n));
+    const cornerSeen = new Map();
+    cornerIdxs.forEach((idx) => {
+      cornerSeen.set(idx, (cornerSeen.get(idx) || 0) + 1);
+    });
+    const cornerDuplicates = [];
+    cornerSeen.forEach((count, idx) => {
+      if (count > 1) cornerDuplicates.push(idx);
+    });
+    const cornerInvalid = cornerEls.length !== 4 || cornerSeen.size !== 4 || cornerDuplicates.length > 0;
+    if (cornerInvalid) {
+      console.error("[CORNER_INVALID]", {
+        count: cornerEls.length,
+        indices: cornerIdxs,
+        duplicates: cornerDuplicates
+      });
+    }
+    setCornerDebugWarningVisible(cornerInvalid);
+    console.log("[TRACK_AUDIT]", source, {
+      count: fields.length,
+      indices,
+      duplicates,
+      missing
+    });
+    return !invalid;
+  }
+
+  function getFieldEl(idx) {
+    const matches = document.querySelectorAll(`.track-field[data-track-index="${idx}"]`);
+    if (matches.length !== 1) {
+      console.error("[FIELD_MATCH_BAD]", idx, matches.length, matches);
+      return null;
+    }
+    return matches[0];
+  }
+
+  function getCenterWithinBoard(boardEl, fieldEl) {
+    if (!boardEl || !fieldEl) return null;
+    if (!boardEl.contains(fieldEl) || fieldEl.offsetParent !== boardEl) {
+      console.error("[FIELD_PARENT_BAD]", fieldEl, "offsetParent", fieldEl.offsetParent);
+      return null;
+    }
+    const x = fieldEl.offsetLeft + fieldEl.offsetWidth / 2;
+    const y = fieldEl.offsetTop + fieldEl.offsetHeight / 2;
+    return { x, y };
+  }
+
+  function placeAllTokens() {
     const tokenLayer = $("tokenLayer");
     const TRACK = (state && state.track && state.track.length) ? state.track : null;
     const TRACK_LEN = TRACK ? TRACK.length : 0;
@@ -485,13 +727,13 @@
     }
     tokenLayer.innerHTML = "";
     const players = state.players;
-    const tokenPosByPlayerId = state.tokenPosByPlayerId || {};
+    const positionIndexByPlayerId = state.positionIndexByPlayerId || {};
     const tokenStyleByPlayerId = state.tokenStyleByPlayerId || {};
     const TOKEN_SIZE = 18;
     const OFFSET_STEP = 10;
 
     const items = players.map((p) => {
-      const pos = Math.max(0, Math.min(TRACK_LEN - 1, tokenPosByPlayerId[p.id] ?? 0));
+      const pos = Math.max(0, Math.min(TRACK_LEN - 1, positionIndexByPlayerId[p.id] ?? 0));
       const style = tokenStyleByPlayerId[p.id] || { shape: "circle", color: "#8b5cf6" };
       return { player: p, pos, style };
     });
@@ -502,18 +744,20 @@
     });
 
     items.forEach((item) => {
-      const entry = TRACK[item.pos];
-      const anchor = getTileElByIndex(item.pos);
-      if (!anchor) return;
+      const anchor = getFieldEl(item.pos);
+      if (!anchor) {
+        console.error("[TOKEN_PLACE]", "missing track field for index", item.pos);
+        return;
+      }
       const posCount = byPos[item.pos].length;
       const offsetIndex = byPos[item.pos].findIndex((x) => x.player.id === item.player.id);
       const offsetX = (offsetIndex % 2) * OFFSET_STEP;
       const offsetY = Math.floor(offsetIndex / 2) * OFFSET_STEP;
 
-      const anchorRect = anchor.getBoundingClientRect();
-      const layerRect = (board || tokenLayer).getBoundingClientRect();
-      const left = anchorRect.left - layerRect.left + (anchorRect.width - TOKEN_SIZE) / 2 + offsetX;
-      const top = anchorRect.top - layerRect.top + (anchorRect.height - TOKEN_SIZE) / 2 + offsetY;
+      const center = getCenterWithinBoard(board, anchor);
+      if (!center) return;
+      const left = center.x - TOKEN_SIZE / 2 + offsetX;
+      const top = center.y - TOKEN_SIZE / 2 + offsetY;
 
       const token = document.createElement("div");
       token.className = "token " + (item.style.shape === "square" ? "token-square" : "token-circle");
@@ -524,24 +768,54 @@
       token.style.height = TOKEN_SIZE + "px";
       token.style.left = left + "px";
       token.style.top = top + "px";
+      if (isDebugUI()) {
+        const badge = document.createElement("div");
+        badge.textContent = `idx:${item.pos}`;
+        badge.style.position = "absolute";
+        badge.style.top = "-12px";
+        badge.style.left = "50%";
+        badge.style.transform = "translateX(-50%)";
+        badge.style.fontSize = "10px";
+        badge.style.color = "var(--text)";
+        badge.style.background = "rgba(0,0,0,0.6)";
+        badge.style.borderRadius = "6px";
+        badge.style.padding = "0 4px";
+        badge.style.pointerEvents = "none";
+        token.appendChild(badge);
+      }
+      if (anchor.dataset.kind === "corner") {
+        console.log(
+          "[TOKEN_CORNER_PLACE]",
+          item.pos,
+          anchor.dataset.cornerId,
+          { offsetLeft: anchor.offsetLeft, offsetTop: anchor.offsetTop, w: anchor.offsetWidth, h: anchor.offsetHeight }
+        );
+      }
       tokenLayer.appendChild(token);
     });
   }
 
+  function schedulePlacement() {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        placeAllTokens();
+      });
+    });
+  }
+
   /** Corner circles: color-code by assigned player (border + glow match token color). Unassigned = neutral. */
-  const CORNER_IDS = ["corner-tl", "corner-tr", "corner-br", "corner-bl"];
   function applyCornerColors() {
     if (!state || !state.players) return;
-    const cornerIndexToColor = {};
+    const cornerIdToColor = {};
     state.players.forEach((p) => {
-      if (p.cornerIndex != null && p.color) {
-        cornerIndexToColor[p.cornerIndex] = p.color;
+      if (p.cornerId && p.color) {
+        cornerIdToColor[p.cornerId] = p.color;
       }
     });
-    CORNER_IDS.forEach((id, i) => {
-      const el = $(id);
-      if (!el) return;
-      const color = cornerIndexToColor[i];
+    const cornerEls = document.querySelectorAll(".track-corner[data-corner-id]");
+    cornerEls.forEach((el) => {
+      const cornerId = el.getAttribute("data-corner-id");
+      const color = cornerIdToColor[cornerId];
       if (color) {
         el.style.borderColor = color;
         el.style.boxShadow = `0 0 12px ${color}, inset 0 0 10px rgba(0,0,0,0.25)`;
@@ -555,10 +829,22 @@
   let selectedBuildingType = null;
   let lastLandingLogKey = null;
 
+  function highlightLandedField() {
+    if (!state || !state.currentTurnPlayerId) return;
+    const pos = state.positionIndexByPlayerId && state.positionIndexByPlayerId[state.currentTurnPlayerId];
+    if (pos == null) return;
+    const el = getFieldEl(pos);
+    if (!el) return;
+    el.classList.add(LANDED_HIGHLIGHT_CLASS);
+    setTimeout(() => {
+      el.classList.remove(LANDED_HIGHLIGHT_CLASS);
+    }, 500);
+  }
+
   function logLandingLabel() {
     if (!state || !state.lastRoll || !state.track || !state.currentTurnPlayerId) return;
     const playerId = state.currentTurnPlayerId;
-    const pos = state.tokenPosByPlayerId && state.tokenPosByPlayerId[playerId];
+    const pos = state.positionIndexByPlayerId && state.positionIndexByPlayerId[playerId];
     if (pos == null) return;
     const cell = state.track.find((c) => c.index === pos) || state.track[pos];
     const resourceType = cell && cell.resourceType ? cell.resourceType : "none";
@@ -674,6 +960,27 @@
       updateDiceDisplay(null, null);
       if (diceResult) diceResult.classList.add("hidden");
     }
+  }
+
+  function updateDebugOverlay() {
+    if (!isDebugUI()) return;
+    const badge = ensureDebugBadge();
+    if (!state || !state.currentTurnPlayerId) {
+      badge.textContent = "No state";
+      return;
+    }
+    const currentId = state.currentTurnPlayerId;
+    const currentPos = state.positionIndexByPlayerId
+      ? state.positionIndexByPlayerId[currentId]
+      : null;
+    const lastRoll = state.lastRoll;
+    const steps = lastRoll ? lastRoll.total : null;
+    const oldPos = lastRoll && currentPos != null ? ((currentPos - steps + 26) % 26) : null;
+    badge.textContent =
+      `player: ${currentId}\n` +
+      `oldIndex: ${oldPos}\n` +
+      `steps: ${steps}\n` +
+      `newIndex: ${currentPos}`;
   }
 
   function renderBreachPanel() {
@@ -829,7 +1136,9 @@
     if (gameTimer) gameTimer.classList.remove("hidden");
     
     renderBoard();
-    renderTokens();
+    applyDebugVisibility();
+    schedulePlacement();
+    runTrackAudit("renderState");
     applyCornerColors();
     renderPlayers();
     renderDice();
@@ -837,6 +1146,8 @@
     renderBreachPanel();
     renderBuildingPanel();
     logLandingLabel();
+    updateDebugOverlay();
+    highlightLandedField();
 
     // Game info removed - now in sidebar
 
@@ -855,9 +1166,13 @@
       if (rollBtn) {
         rollBtn.classList.remove("hidden");
         rollBtn.style.display = ""; // Ensure it's visible
+        rollBtn.disabled = rollPending;
       }
     } else {
-      if (rollBtn) rollBtn.classList.add("hidden");
+      if (rollBtn) {
+        rollBtn.classList.add("hidden");
+        rollBtn.disabled = false;
+      }
     }
     
     if (main && isCurrentPlayer()) {
@@ -948,10 +1263,17 @@
     // Game stays on /game page - no redirect needed
   });
 
-  $("rollBtn").addEventListener("click", () => {
-    if (!socket || !user) return;
+  function handleRollClick() {
+    if (!socket || !user || rollPending) return;
+    setRollPending(true);
     socket.emit("rollDice");
-  });
+  }
+
+  const rollBtnEl = $("rollBtn");
+  if (rollBtnEl) {
+    rollBtnEl.removeEventListener("click", handleRollClick);
+    rollBtnEl.addEventListener("click", handleRollClick);
+  }
 
   $("endTurnBtn").addEventListener("click", () => {
     if (!socket || !user) return;

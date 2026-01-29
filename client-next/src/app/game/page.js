@@ -4,13 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { getMe } from "@/lib/api";
 import { connectSocket } from "@/lib/socket";
-import { TRACK } from "@/lib/track";
 
 const RESOURCES = ["stone", "iron", "food", "water", "gold"];
 const TRACK_TOP = ["cell-top-0", "cell-top-1", "cell-top-2", "cell-top-3", "cell-top-4", "cell-top-5", "cell-top-6"];
 const TRACK_RIGHT = ["cell-right-0", "cell-right-1", "cell-right-2", "cell-right-3"];
 const TRACK_BOTTOM = ["cell-bottom-6", "cell-bottom-5", "cell-bottom-4", "cell-bottom-3", "cell-bottom-2", "cell-bottom-1", "cell-bottom-0"];
-const TRACK_LEFT = ["cell-left-3", "cell-left-2", "cell-left-1", "cell-left-0"];
+const TRACK_LEFT = ["cell-left-0", "cell-left-1", "cell-left-2", "cell-left-3"];
 
 function formatResourceLabel(resourceType) {
   if (!resourceType) return "";
@@ -102,14 +101,14 @@ export default function GamePage() {
   const computeTokens = useCallback(() => {
     const board = boardRef.current;
     const tokenLayer = tokenLayerRef.current;
-    if (!board || !tokenLayer || !state?.players?.length) {
+    const track = state?.track?.length ? state.track : null;
+    const trackLen = track ? track.length : 0;
+    if (!board || !tokenLayer || !trackLen || !state?.players?.length) {
       setTokens([]);
       return;
     }
 
-    const track = state?.track?.length ? state.track : TRACK;
-    const trackLen = track.length;
-    const tokenPosByPlayerId = state.tokenPosByPlayerId || {};
+    const positionIndexByPlayerId = state.positionIndexByPlayerId || {};
     const tokenStyleByPlayerId = state.tokenStyleByPlayerId || {};
     const players = state.players || [];
     const tokenSize = 18;
@@ -117,7 +116,7 @@ export default function GamePage() {
 
     const byPos = {};
     const items = players.map((player) => {
-      const pos = Math.max(0, Math.min(trackLen - 1, tokenPosByPlayerId[player.id] ?? 0));
+      const pos = Math.max(0, Math.min(trackLen - 1, positionIndexByPlayerId[player.id] ?? 0));
       const style = tokenStyleByPlayerId[player.id] || { shape: "circle", color: "#8b5cf6" };
       if (!byPos[pos]) byPos[pos] = [];
       byPos[pos].push(player.id);
@@ -127,7 +126,7 @@ export default function GamePage() {
     const layerRect = (board || tokenLayer).getBoundingClientRect();
     const nextTokens = items
       .map((item) => {
-        const anchor = board.querySelector(`.track-tile[data-tile-index="${item.pos}"]`);
+        const anchor = board.querySelector(`.track-field[data-track-index="${item.pos}"]`);
         if (!anchor) return null;
         const offsetIndex = byPos[item.pos].indexOf(item.player.id);
         const offsetX = (offsetIndex % 2) * offsetStep;
@@ -158,11 +157,20 @@ export default function GamePage() {
     return () => window.removeEventListener("resize", computeTokens);
   }, [state?.players?.length, computeTokens]);
 
-  const track = state?.track?.length ? state.track : TRACK;
+  const track = state?.track?.length ? state.track : null;
+  const cornerIndexById = useMemo(() => {
+    const map = {};
+    (track || []).forEach((field) => {
+      if (field.kind === "corner" && field.cornerId) {
+        map[field.cornerId] = field.index;
+      }
+    });
+    return map;
+  }, [track]);
   const trackByDomId = useMemo(() => {
     const byId = {};
     const byIndex = {};
-    track.forEach((cell, i) => {
+    (track || []).forEach((cell, i) => {
       byId[cell.domId] = cell;
       byIndex[cell.domId] = cell.index != null ? cell.index : i;
     });
@@ -183,10 +191,10 @@ export default function GamePage() {
     return `Time: ${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
   }, [now, state?.matchStartTime]);
   const cornerColors = useMemo(() => {
-    const colors = [null, null, null, null];
+    const colors = {};
     (state?.players || []).forEach((player) => {
-      if (player.cornerIndex != null && player.color) {
-        colors[player.cornerIndex] = player.color;
+      if (player.cornerId && player.color) {
+        colors[player.cornerId] = player.color;
       }
     });
     return colors;
@@ -346,37 +354,45 @@ export default function GamePage() {
                 <div className="board-container">
                   <div className="soure-board" ref={boardRef} role="img" aria-label="Game board">
                     <div
-                      className="corner corner-tl"
+                      className="corner track-field track-corner corner-tl"
+                      data-corner-id="TL"
+                      data-track-index={cornerIndexById.TL}
                       style={
-                        cornerColors[0]
-                          ? { borderColor: cornerColors[0], boxShadow: `0 0 12px ${cornerColors[0]}` }
+                        cornerColors.TL
+                          ? { borderColor: cornerColors.TL, boxShadow: `0 0 12px ${cornerColors.TL}` }
                           : undefined
                       }
                       aria-hidden="true"
                     />
                     <div
-                      className="corner corner-tr"
+                      className="corner track-field track-corner corner-tr"
+                      data-corner-id="TR"
+                      data-track-index={cornerIndexById.TR}
                       style={
-                        cornerColors[1]
-                          ? { borderColor: cornerColors[1], boxShadow: `0 0 12px ${cornerColors[1]}` }
+                        cornerColors.TR
+                          ? { borderColor: cornerColors.TR, boxShadow: `0 0 12px ${cornerColors.TR}` }
                           : undefined
                       }
                       aria-hidden="true"
                     />
                     <div
-                      className="corner corner-bl"
+                      className="corner track-field track-corner corner-bl"
+                      data-corner-id="BL"
+                      data-track-index={cornerIndexById.BL}
                       style={
-                        cornerColors[3]
-                          ? { borderColor: cornerColors[3], boxShadow: `0 0 12px ${cornerColors[3]}` }
+                        cornerColors.BL
+                          ? { borderColor: cornerColors.BL, boxShadow: `0 0 12px ${cornerColors.BL}` }
                           : undefined
                       }
                       aria-hidden="true"
                     />
                     <div
-                      className="corner corner-br"
+                      className="corner track-field track-corner corner-br"
+                      data-corner-id="BR"
+                      data-track-index={cornerIndexById.BR}
                       style={
-                        cornerColors[2]
-                          ? { borderColor: cornerColors[2], boxShadow: `0 0 12px ${cornerColors[2]}` }
+                        cornerColors.BR
+                          ? { borderColor: cornerColors.BR, boxShadow: `0 0 12px ${cornerColors.BR}` }
                           : undefined
                       }
                       aria-hidden="true"
@@ -389,9 +405,9 @@ export default function GamePage() {
                         return (
                           <div
                             key={domId}
-                            className="track-slot track-tile"
+                            className="track-slot track-field track-resource"
                             id={domId}
-                            data-tile-index={index}
+                            data-track-index={index}
                           >
                             <div className="slot-label">{formatResourceLabel(cell?.resourceType)}</div>
                             <div className="slot-meta" />
@@ -406,9 +422,9 @@ export default function GamePage() {
                         return (
                           <div
                             key={domId}
-                            className="track-slot track-tile"
+                            className="track-slot track-field track-resource"
                             id={domId}
-                            data-tile-index={index}
+                            data-track-index={index}
                           >
                             <div className="slot-label">{formatResourceLabel(cell?.resourceType)}</div>
                             <div className="slot-meta" />
@@ -423,9 +439,9 @@ export default function GamePage() {
                         return (
                           <div
                             key={domId}
-                            className="track-slot track-tile"
+                            className="track-slot track-field track-resource"
                             id={domId}
-                            data-tile-index={index}
+                            data-track-index={index}
                           >
                             <div className="slot-label">{formatResourceLabel(cell?.resourceType)}</div>
                             <div className="slot-meta" />
@@ -440,9 +456,9 @@ export default function GamePage() {
                         return (
                           <div
                             key={domId}
-                            className="track-slot track-tile"
+                            className="track-slot track-field track-resource"
                             id={domId}
-                            data-tile-index={index}
+                            data-track-index={index}
                           >
                             <div className="slot-label">{formatResourceLabel(cell?.resourceType)}</div>
                             <div className="slot-meta" />

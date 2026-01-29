@@ -109,9 +109,27 @@
     }
   });
 
+  let rollPending = false;
+
+  function setRollPending(isPending) {
+    rollPending = isPending;
+    const rollBtn = $("rollBtn");
+    if (rollBtn) rollBtn.disabled = isPending;
+  }
+
   function connectSocket() {
     console.log("[play] Connecting socket...");
+    if (socket) return;
     socket = io({ withCredentials: true });
+    socket.off("connect");
+    socket.off("disconnect");
+    socket.off("reconnect");
+    socket.off("rejoinGameResult");
+    socket.off("connect_error");
+    socket.off("error");
+    socket.off("gameState");
+    socket.off("joinGameResult");
+    socket.off("rollResult");
 
     socket.on("connect", () => {
       console.log("[play] Socket connected:", socket.id);
@@ -158,6 +176,7 @@
       console.error("[play] Socket connect_error:", error);
       const errorMsg = "Connection failed. " + (error.message || "Ensure you are logged in and try refreshing the page.");
       showError(errorMsg);
+      setRollPending(false);
       showReconnectOverlay();
       // On mobile, this might be a session issue
       if (navigator.userAgent.match(/Mobile|Android|iPhone|iPad/)) {
@@ -168,11 +187,13 @@
 
     socket.on("error", (payload) => {
       showError(payload.message || "Error");
+      setRollPending(false);
     });
 
     socket.on("gameState", (s) => {
       console.log("[play] Received gameState:", s?.phase, s?.gameId);
       state = s;
+      setRollPending(false);
       renderState();
     });
 
@@ -196,6 +217,7 @@
     });
 
     socket.on("rollResult", (result) => {
+      setRollPending(false);
       // Trigger dice roll animation
       const dice1 = $("dice1");
       const dice2 = $("dice2");
@@ -273,8 +295,10 @@
     if (rollBtn) {
       if (roll && isCurrentPlayer()) {
         rollBtn.classList.remove("hidden");
+        rollBtn.disabled = rollPending;
       } else {
         rollBtn.classList.add("hidden");
+        rollBtn.disabled = false;
       }
     }
     if (endTurnBtn) {
@@ -401,10 +425,17 @@
     return div.innerHTML;
   }
 
-  $("rollBtn").addEventListener("click", () => {
-    if (!socket || !user) return;
+  function handleRollClick() {
+    if (!socket || !user || rollPending) return;
+    setRollPending(true);
     socket.emit("rollDice");
-  });
+  }
+
+  const rollBtnEl = $("rollBtn");
+  if (rollBtnEl) {
+    rollBtnEl.removeEventListener("click", handleRollClick);
+    rollBtnEl.addEventListener("click", handleRollClick);
+  }
 
   $("endTurnBtn").addEventListener("click", () => {
     if (!socket || !user) return;

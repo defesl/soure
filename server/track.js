@@ -6,13 +6,21 @@
  */
 const TRACK_RESOURCE_TYPES = ["stone", "iron", "food", "water", "gold"];
 
+const CORNER_IDS = ["TL", "TR", "BR", "BL"];
+
+const CORNER_FIELDS = [
+  { kind: "corner", cornerId: "TL", domId: "corner-tl" },
+  { kind: "corner", cornerId: "TR", domId: "corner-tr" },
+  { kind: "corner", cornerId: "BR", domId: "corner-br" },
+  { kind: "corner", cornerId: "BL", domId: "corner-bl" }
+];
+
 /**
  * Canonical ordered list of resource tiles on the perimeter track (clockwise).
- * Corners are NOT part of the track index list.
  * Order: top row (left→right), right side (top→bottom),
  * bottom row (right→left), left side (bottom→top).
  */
-const TRACK_TILES_RAW = [
+const RESOURCE_FIELDS_RAW = [
   { id: "top-0", domId: "cell-top-0" },
   { id: "top-1", domId: "cell-top-1" },
   { id: "top-2", domId: "cell-top-2" },
@@ -31,22 +39,44 @@ const TRACK_TILES_RAW = [
   { id: "bottom-2", domId: "cell-bottom-2" },
   { id: "bottom-1", domId: "cell-bottom-1" },
   { id: "bottom-0", domId: "cell-bottom-0" },
-  { id: "left-3", domId: "cell-left-3" },
-  { id: "left-2", domId: "cell-left-2" },
+  { id: "left-0", domId: "cell-left-0" },
   { id: "left-1", domId: "cell-left-1" },
-  { id: "left-0", domId: "cell-left-0" }
+  { id: "left-2", domId: "cell-left-2" },
+  { id: "left-3", domId: "cell-left-3" }
 ];
 
 let resourceSlotIndex = 0;
-const TRACK_TILES = TRACK_TILES_RAW.map((cell, index) => {
+const RESOURCE_FIELDS = RESOURCE_FIELDS_RAW.map((cell) => {
   const resourceType = TRACK_RESOURCE_TYPES[resourceSlotIndex % TRACK_RESOURCE_TYPES.length];
   resourceSlotIndex += 1;
-  return { index, type: "resource", resourceType, ...cell };
+  return { kind: "resource", resourceType, ...cell };
 });
 
-const TRACK_LEN = TRACK_TILES.length;
+const TRACK_FIELDS = [
+  CORNER_FIELDS[0],
+  ...RESOURCE_FIELDS.slice(0, 7),
+  CORNER_FIELDS[1],
+  ...RESOURCE_FIELDS.slice(7, 11),
+  CORNER_FIELDS[2],
+  ...RESOURCE_FIELDS.slice(11, 18),
+  CORNER_FIELDS[3],
+  ...RESOURCE_FIELDS.slice(18, 22)
+].map((field, index) => ({ index, ...field }));
+
+const TRACK_LEN = TRACK_FIELDS.length;
+
+const CORNER_INDEX_BY_ID = TRACK_FIELDS.reduce((acc, field) => {
+  if (field.kind === "corner") acc[field.cornerId] = field.index;
+  return acc;
+}, {});
 
 /** Predefined player colors (no duplicates for first 4 players). */
 const TOKEN_PALETTE = ["#ef4444", "#22c55e", "#38bdf8", "#facc15"];
 
-module.exports = { TRACK_TILES, TRACK_LEN, TOKEN_PALETTE };
+module.exports = {
+  TRACK_FIELDS,
+  TRACK_LEN,
+  TOKEN_PALETTE,
+  CORNER_IDS,
+  CORNER_INDEX_BY_ID
+};

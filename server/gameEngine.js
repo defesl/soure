@@ -1,19 +1,10 @@
 "use strict";
 
-const { TRACK_TILES, TRACK_LEN, TOKEN_PALETTE } = require("./track");
+const { TRACK_FIELDS, TRACK_LEN, TOKEN_PALETTE, CORNER_IDS, CORNER_INDEX_BY_ID } = require("./track");
 const RESOURCE_TYPES = ["stone", "iron", "food", "water", "gold"];
 const BUILDING_TYPES = ["outpost", "citadel", "capital", "bastion"];
 
-const CORNER_DOM_IDS = ["corner-tl", "corner-tr", "corner-br", "corner-bl"];
-const CORNER_START_INDEX_BY_DOM_ID = {
-  "corner-tl": 0,
-  "corner-tr": 7,
-  "corner-br": 11,
-  "corner-bl": 18
-};
-const CORNER_TRACK_INDEX_BY_CORNER = CORNER_DOM_IDS.map((domId) =>
-  CORNER_START_INDEX_BY_DOM_ID[domId] ?? 0
-);
+const CORNER_PRIORITY_RESOURCES = ["gold", "iron", "stone", "food", "water"];
 
 function pickPlayerColor(players) {
   const used = new Set(players.map((p) => p.color).filter(Boolean));
@@ -21,10 +12,10 @@ function pickPlayerColor(players) {
   return available || TOKEN_PALETTE[players.length % TOKEN_PALETTE.length];
 }
 
-function pickCornerIndex(players) {
-  const used = new Set(players.map((p) => p.cornerIndex).filter((c) => c != null));
-  const available = [0, 1, 2, 3].filter((c) => !used.has(c));
-  if (available.length === 0) return 0;
+function pickCornerId(players) {
+  const used = new Set(players.map((p) => p.cornerId).filter(Boolean));
+  const available = CORNER_IDS.filter((c) => !used.has(c));
+  if (available.length === 0) return CORNER_IDS[0];
   return available[Math.floor(Math.random() * available.length)];
 }
 
@@ -89,12 +80,9 @@ function addToLog(log, msg) {
  * @param {SoureGame} game
  * @param {string} playerId
  */
-function awardLandingResource(game, playerId) {
-  const position = game.tokenPosByPlayerId[playerId];
-  if (position == null) return;
-  const cell = TRACK_TILES[position];
-  if (!cell || !cell.resourceType) return;
-  const resourceType = cell.resourceType;
+function awardLandingResource(game, playerId, field) {
+  if (!field || field.kind !== "resource") return;
+  const resourceType = field.resourceType;
   if (!RESOURCE_TYPES.includes(resourceType)) return;
   const playerRes = game.resources[playerId];
   if (!playerRes) return;
@@ -103,6 +91,30 @@ function awardLandingResource(game, playerId) {
   const player = game.players.find((p) => p.id === playerId);
   const name = player ? player.name : "Player";
   addToLog(game.eventLog, `${name} landed on ${resourceType} and received +${amount} ${resourceType}.`);
+}
+
+function resolveCornerLanding(game, playerId, field) {
+  if (!field || field.kind !== "corner") return;
+  const ownerId = game.cornerOwners[field.cornerId];
+  if (!ownerId || ownerId === playerId) return;
+  const playerRes = game.resources[playerId];
+  const ownerRes = game.resources[ownerId];
+  if (!playerRes || !ownerRes) return;
+
+  const resourceToPay = CORNER_PRIORITY_RESOURCES.find((type) => playerRes[type] > 0);
+  const landingPlayer = game.players.find((p) => p.id === playerId);
+  const ownerPlayer = game.players.find((p) => p.id === ownerId);
+  const landingName = landingPlayer ? landingPlayer.name : "Player";
+  const ownerName = ownerPlayer ? ownerPlayer.name : "Player";
+
+  if (!resourceToPay) {
+    addToLog(game.eventLog, `${landingName} landed on ${ownerName}'s corner but had no resources to pay.`);
+    return;
+  }
+
+  playerRes[resourceToPay] -= 1;
+  ownerRes[resourceToPay] += 1;
+  addToLog(game.eventLog, `${landingName} landed on ${ownerName}'s corner and paid 1 ${resourceToPay}.`);
 }
 
 function shuffleArray(array) {
@@ -193,13 +205,15 @@ class SoureGame {
     this.eventLog = [];
     this.creatorId = null;
     this.matchStartTime = null;
-    this.turnNumber = 0;
-    this.lastRollTurn = null;
+    this.turnSeq = 0;
+    this.lastProcessedRollSeq = null;
     this.board = null; // Will be generated on startMatch
     /** @type {Record<string, number>} token position index into TRACK (server-authoritative). */
-    this.tokenPosByPlayerId = {};
+    this.positionIndexByPlayerId = {};
     /** @type {Record<string, { shape: "circle"|"square", color: string }>} stable per player. */
     this.tokenStyleByPlayerId = {};
+    /** @type {Record<string, string>} cornerId -> playerId */
+    this.cornerOwners = {};
   }
 
   /**
@@ -209,15 +223,16 @@ class SoureGame {
   addPlayer(id, name) {
     if (this.players.some((p) => p.id === id)) return;
     const color = pickPlayerColor(this.players);
-    const cornerIndex = pickCornerIndex(this.players);
-    const startTrackIndex = CORNER_TRACK_INDEX_BY_CORNER[cornerIndex] ?? 0;
-    this.players.push({ id, name, color, cornerIndex, position: startTrackIndex });
+    const cornerId = pickCornerId(this.players);
+    const startTrackIndex = CORNER_INDEX_BY_ID[cornerId] ?? 0;
+    this.players.push({ id, name, color, cornerId, positionIndex: startTrackIndex });
     this.resources[id] = emptyResources();
     this.population[id] = { max: 3, used: 0 };
     this.dominionPoints[id] = 0;
     this.defenseLevel[id] = 0;
-    this.tokenPosByPlayerId[id] = startTrackIndex;
+    this.positionIndexByPlayerId[id] = startTrackIndex;
     this.tokenStyleByPlayerId[id] = { shape: "circle", color };
+    this.cornerOwners[cornerId] = id;
     addToLog(this.eventLog, `${name} joined the game.`);
   }
 
@@ -251,11 +266,11 @@ class SoureGame {
     this.phase = "roll";
     this.currentTurnIndex = 0;
     this.matchStartTime = Date.now();
-    this.turnNumber = 1;
-    this.lastRollTurn = null;
+    this.turnSeq = 1;
+    this.lastProcessedRollSeq = null;
     this.players.forEach((p) => {
-      const existing = this.tokenPosByPlayerId[p.id];
-      this.tokenPosByPlayerId[p.id] = existing ?? p.position ?? 0;
+      const existing = this.positionIndexByPlayerId[p.id];
+      this.positionIndexByPlayerId[p.id] = existing ?? p.positionIndex ?? 0;
     });
     const current = this.players[this.currentTurnIndex];
     addToLog(this.eventLog, `Match started! Board generated. ${current.name} goes first.`);
@@ -411,7 +426,7 @@ class SoureGame {
     if (current.id !== userId) {
       return { ok: false, error: "Only the current player can roll" };
     }
-    if (this.lastRollTurn === this.turnNumber) {
+    if (this.lastProcessedRollSeq === this.turnSeq) {
       return { ok: false, error: "Already rolled this turn" };
     }
 
@@ -419,39 +434,55 @@ class SoureGame {
     const d2 = Math.floor(Math.random() * 6) + 1;
     const total = d1 + d2;
     const isDouble = d1 === d2;
+    console.log("[DICE]", Date.now(), "d1", d1, "d2", d2, "total", total);
 
     this.lastRoll = { d1, d2, total, isDouble };
     this.extraTurn = isDouble;
 
     // Advance current player's token by (d1 + d2) steps; wrap around track.
     const steps = d1 + d2;
-    const currentPos = this.tokenPosByPlayerId[current.id] ?? 0;
-    const nextPos = (currentPos + steps) % TRACK_LEN;
-    this.tokenPosByPlayerId[current.id] = nextPos;
     const currentPlayer = this.players.find((p) => p.id === current.id);
-    if (currentPlayer) currentPlayer.position = this.tokenPosByPlayerId[current.id];
-    this.lastRollTurn = this.turnNumber;
+    const storedPos = currentPlayer?.positionIndex;
+    const fallbackPos = this.positionIndexByPlayerId[current.id];
+    const currentPos =
+      Number.isInteger(storedPos)
+        ? storedPos
+        : (Number.isInteger(fallbackPos) ? fallbackPos : 0);
+    console.log(
+      "[POS_CHECK_BEFORE]",
+      "player",
+      current.id,
+      "storedPositionIndex=",
+      storedPos,
+      "turnSeq=",
+      this.turnSeq
+    );
+    const nextPos = (currentPos + steps) % TRACK_LEN;
+    this.positionIndexByPlayerId[current.id] = nextPos;
+    if (currentPlayer) currentPlayer.positionIndex = nextPos;
+    console.log(
+      "[POS_CHECK_AFTER]",
+      "player",
+      current.id,
+      "old=",
+      currentPos,
+      "steps=",
+      steps,
+      "new=",
+      nextPos
+    );
+    this.lastProcessedRollSeq = this.turnSeq;
+    const delta = (nextPos - currentPos + TRACK_LEN) % TRACK_LEN;
 
     // Award resource ONLY when token lands on a resource field (once per movement resolution).
-    awardLandingResource(this, current.id);
-    const landedCell = TRACK_TILES[this.tokenPosByPlayerId[current.id]];
-    const landedResource = landedCell && landedCell.resourceType ? landedCell.resourceType : "none";
+    const landedField = TRACK_FIELDS[this.positionIndexByPlayerId[current.id]];
+    awardLandingResource(this, current.id, landedField);
+    resolveCornerLanding(this, current.id, landedField);
     console.log(
-      `[gameEngine] ${current.name} rolled ${total}, moved ${currentPos} -> ${this.tokenPosByPlayerId[current.id]}, landed on ${this.tokenPosByPlayerId[current.id]} (${landedResource})`
+      `[ROLL_CHECK] old=${currentPos} d1=${d1} d2=${d2} steps=${steps} new=${nextPos} N=${TRACK_LEN} delta=${delta} landedKind=${landedField?.kind || "none"} landed=${landedField?.resourceType || landedField?.cornerId || "none"}`
     );
     console.log(
-      "[gameEngine] rollDice",
-      JSON.stringify({
-        ts: Date.now(),
-        gameId: this.gameId,
-        playerId: current.id,
-        oldIndex: currentPos,
-        d1,
-        d2,
-        totalSteps: steps,
-        newIndex: nextPos,
-        trackLen: TRACK_LEN
-      })
+      `[ROLL_OUT] ts=${Date.now()} game=${this.gameId} player=${current.id} turn=${this.turnSeq} new=${nextPos} landedKind=${landedField?.kind || "none"} landedResourceType=${landedField?.resourceType || "none"} landedCornerId=${landedField?.cornerId || "none"}`
     );
 
     // Breach event (roll 7)
@@ -574,7 +605,7 @@ class SoureGame {
     if (this.extraTurn) {
       this.extraTurn = false;
       this.phase = "roll";
-      this.turnNumber += 1;
+      this.turnSeq += 1;
       addToLog(this.eventLog, `${current.name} ends extra turn. Rolling again.`);
       return { ok: true, extraTurnUsed: true };
     }
@@ -582,7 +613,7 @@ class SoureGame {
     this.currentTurnIndex = (this.currentTurnIndex + 1) % this.players.length;
     const next = this.players[this.currentTurnIndex];
     this.phase = "roll";
-    this.turnNumber += 1;
+    this.turnSeq += 1;
     addToLog(this.eventLog, `Turn passed to ${next.name}.`);
     return { ok: true, extraTurnUsed: false };
   }
@@ -596,8 +627,8 @@ class SoureGame {
         name: p.name,
         username: p.name,
         color: p.color,
-        cornerIndex: p.cornerIndex,
-        position: p.position,
+        cornerId: p.cornerId,
+        positionIndex: p.positionIndex,
         population: this.population[p.id],
         dominionPoints: this.dominionPoints[p.id] || 0,
         defenseLevel: this.defenseLevel[p.id] || 0
@@ -619,14 +650,16 @@ class SoureGame {
         })),
         blockedTileId: this.board.blockedTileId
       } : null,
-      tokenPosByPlayerId: { ...this.tokenPosByPlayerId },
+      positionIndexByPlayerId: { ...this.positionIndexByPlayerId },
       tokenStyleByPlayerId: { ...this.tokenStyleByPlayerId },
-      track: TRACK_TILES.map((cell) => ({
-        index: cell.index,
-        id: cell.id,
-        type: cell.type,
-        domId: cell.domId,
-        resourceType: cell.resourceType
+      cornerOwners: { ...this.cornerOwners },
+      track: TRACK_FIELDS.map((field) => ({
+        index: field.index,
+        kind: field.kind,
+        id: field.id,
+        domId: field.domId,
+        resourceType: field.resourceType,
+        cornerId: field.cornerId
       }))
     };
   }
