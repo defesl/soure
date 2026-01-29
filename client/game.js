@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const RESOURCES = ["stone", "iron", "food", "water", "gold", "people"];
+  const RESOURCES = ["stone", "iron", "food", "water", "gold"];
 
   let user = null;
   let socket = null;
@@ -374,36 +374,31 @@
   }
 
   function renderInventory() {
-    const inventoryBar = $("inventoryBar");
-    const inventoryChips = $("inventoryChips");
+    const resourceBar = $("resourceBar");
 
     if (!inGame() || !user) {
-      if (inventoryBar) inventoryBar.classList.add("hidden");
+      if (resourceBar) resourceBar.classList.add("hidden");
       return;
     }
 
-    if (inventoryBar) inventoryBar.classList.remove("hidden");
+    if (resourceBar) resourceBar.classList.remove("hidden");
     const myRes = (state.resources && state.resources[user.id]) || {};
-    console.log("[game] Rendering inventory for user:", user.id, "resources:", myRes);
-    
-    if (inventoryChips) {
-      inventoryChips.innerHTML = "";
-      RESOURCES.forEach((k) => {
-        const count = myRes[k] || 0;
-        const name = k[0].toUpperCase() + k.slice(1);
-        const chip = document.createElement("div");
-        chip.className = "inventory-chip" + (count > 0 ? " has-resource" : "");
-        chip.innerHTML = `
-          <img class="resource-icon" src="${resourceIconSrc(k)}" alt="" onerror="this.style.display='none'"/>
-          <span style="text-transform: capitalize;">${name}</span>
-          <strong style="color: ${count > 0 ? 'var(--success)' : 'var(--muted)'};">${count}</strong>
-        `;
-        inventoryChips.appendChild(chip);
-      });
-    }
+    resourceBar.innerHTML = "";
+    RESOURCES.forEach((k) => {
+      const count = myRes[k] || 0;
+      const name = k[0].toUpperCase() + k.slice(1);
+      const chip = document.createElement("div");
+      chip.className = "inventory-chip" + (count > 0 ? " has-resource" : "");
+      chip.innerHTML = `
+        <img class="resource-icon" src="${resourceIconSrc(k)}" alt="" onerror="this.style.display='none'"/>
+        <span style="text-transform: capitalize;">${name}</span>
+        <strong style="color: ${count > 0 ? 'var(--success)' : 'var(--muted)'};">${count}</strong>
+      `;
+      resourceBar.appendChild(chip);
+    });
   }
 
-  const TRACK_PLACEHOLDER_LABELS = ["Stone", "Water", "Food", "Gold", "Iron", "People"];
+  const TRACK_PLACEHOLDER_LABELS = ["Stone", "Water", "Food", "Gold", "Iron"];
 
   function renderBoard() {
     const trackTop = $("trackTop");
@@ -413,9 +408,10 @@
     const boardCenter = $("boardCenter");
     if (!trackTop || !trackRight || !trackBottom || !trackLeft) return;
 
-    function createSlot(index, label, meta, extraClasses) {
+    function createSlot(index, label, meta, domId, extraClasses) {
       const slot = document.createElement("div");
       slot.className = "track-slot" + (extraClasses ? " " + extraClasses : "");
+      slot.id = domId;
       slot.dataset.index = String(index);
       const labelEl = document.createElement("div");
       labelEl.className = "slot-label";
@@ -428,20 +424,21 @@
       return slot;
     }
 
-    function fillTrack(container, count, startIndex) {
+    function fillTrack(container, count, startIndex, segmentName) {
       container.innerHTML = "";
       for (let i = 0; i < count; i++) {
         const idx = startIndex + i;
         const label = TRACK_PLACEHOLDER_LABELS[idx % TRACK_PLACEHOLDER_LABELS.length];
         const meta = (idx % 6) === 0 ? "" : "";
-        container.appendChild(createSlot(idx, label, meta));
+        const domId = "cell-" + segmentName + "-" + i;
+        container.appendChild(createSlot(idx, label, meta, domId));
       }
     }
 
-    fillTrack(trackTop, 7, 0);
-    fillTrack(trackRight, 4, 7);
-    fillTrack(trackBottom, 7, 11);
-    fillTrack(trackLeft, 4, 18);
+    fillTrack(trackTop, 7, 0, "top");
+    fillTrack(trackRight, 4, 7, "right");
+    fillTrack(trackBottom, 7, 11, "bottom");
+    fillTrack(trackLeft, 4, 18, "left");
 
     if (boardCenter) {
       boardCenter.textContent = "";
@@ -454,51 +451,92 @@
     }
   }
 
+  /**
+   * Render player tokens on the board overlay. Positions come from state (server-authoritative).
+   * TRACK order (window.TRACK) must match server/track.js. Tokens at same cell get a 2x2 grid offset.
+   */
+  function renderTokens() {
+    const tokenLayer = $("tokenLayer");
+    const TRACK = window.TRACK;
+    const TRACK_LEN = window.TRACK_LEN;
+    if (!tokenLayer || !TRACK || !TRACK_LEN || !state || !state.players || state.players.length === 0) {
+      if (tokenLayer) tokenLayer.innerHTML = "";
+      return;
+    }
+    tokenLayer.innerHTML = "";
+    const players = state.players;
+    const tokenPosByPlayerId = state.tokenPosByPlayerId || {};
+    const tokenStyleByPlayerId = state.tokenStyleByPlayerId || {};
+    const TOKEN_SIZE = 18;
+    const OFFSET_STEP = 10;
+
+    const items = players.map((p) => {
+      const pos = Math.max(0, Math.min(TRACK_LEN - 1, tokenPosByPlayerId[p.id] ?? 0));
+      const style = tokenStyleByPlayerId[p.id] || { shape: "circle", color: "#8b5cf6" };
+      return { player: p, pos, style };
+    });
+    const byPos = {};
+    items.forEach((item, i) => {
+      if (!byPos[item.pos]) byPos[item.pos] = [];
+      byPos[item.pos].push({ ...item, orderIndex: byPos[item.pos].length });
+    });
+
+    items.forEach((item) => {
+      const entry = TRACK[item.pos];
+      if (!entry) return;
+      const anchor = $(entry.domId);
+      if (!anchor) return;
+      const posCount = byPos[item.pos].length;
+      const offsetIndex = byPos[item.pos].findIndex((x) => x.player.id === item.player.id);
+      const offsetX = (offsetIndex % 2) * OFFSET_STEP;
+      const offsetY = Math.floor(offsetIndex / 2) * OFFSET_STEP;
+
+      const anchorRect = anchor.getBoundingClientRect();
+      const layerRect = tokenLayer.getBoundingClientRect();
+      const left = anchorRect.left - layerRect.left + (anchorRect.width - TOKEN_SIZE) / 2 + offsetX;
+      const top = anchorRect.top - layerRect.top + (anchorRect.height - TOKEN_SIZE) / 2 + offsetY;
+
+      const token = document.createElement("div");
+      token.className = "token " + (item.style.shape === "square" ? "token-square" : "token-circle");
+      token.setAttribute("data-player", item.player.id);
+      token.setAttribute("aria-hidden", "true");
+      token.style.background = item.style.color;
+      token.style.width = TOKEN_SIZE + "px";
+      token.style.height = TOKEN_SIZE + "px";
+      token.style.left = left + "px";
+      token.style.top = top + "px";
+      tokenLayer.appendChild(token);
+    });
+  }
+
   let selectedBuildingType = null;
 
   function renderPlayers() {
-    const playerList = $("playerList");
-    if (!playerList) return;
-    
-    playerList.innerHTML = "";
-    
+    const playersList = $("playersList");
+    if (!playersList) return;
+
+    playersList.innerHTML = "";
+
     (state.players || []).forEach((p) => {
       const playerEl = document.createElement("div");
-      playerEl.className = "player-item-detailed";
+      playerEl.className = "player-card";
       if (p.id === state.currentTurnPlayerId) {
         playerEl.classList.add("current");
       }
-      
-      const r = (state.resources && state.resources[p.id]) || {};
-      const pop = p.population || { max: 3, used: 0 };
-      const dp = p.dominionPoints || 0;
-      const defense = p.defenseLevel || 0;
-      
+
+      const color = p.color || "var(--muted)";
+
       playerEl.innerHTML = `
-        <div class="player-header">
-          <strong>${escapeHtml(p.name)}</strong>
-          ${p.id === state.currentTurnPlayerId ? '<span class="current-badge">Current</span>' : ''}
-        </div>
-        <div class="player-stats">
-          <div>DP: <strong>${dp}</strong></div>
-          <div>Pop: <strong>${pop.used}/${pop.max}</strong></div>
-          <div>Def: <strong>${defense}</strong></div>
-        </div>
-        <div class="player-resources-column" style="margin-top: 6px; font-size: 0.85rem; line-height: 1.2;">
-          ${RESOURCES.map(k => {
-            const count = r[k] || 0;
-            const name = k[0].toUpperCase() + k.slice(1);
-            const iconUrl = resourceIconSrc(k);
-            return `<div class="resource-row ${count > 0 ? 'has' : ''}" style="display: flex; align-items: center; justify-content: space-between; gap: 6px;">
-              <img class="resource-icon" src="${iconUrl}" alt="" onerror="this.style.display='none'"/>
-              <span>${name}</span>
-              <strong>${count}</strong>
-            </div>`;
-          }).join('')}
+        <div class="player-card-header">
+          <div class="player-name">
+            <span class="player-color-dot" style="background:${color}"></span>
+            <strong>${escapeHtml(p.name)}</strong>
+          </div>
+          ${p.id === state.currentTurnPlayerId ? '<span class="current-badge">Current</span>' : ""}
         </div>
       `;
-      
-      playerList.appendChild(playerEl);
+
+      playersList.appendChild(playerEl);
     });
   }
 
@@ -655,7 +693,6 @@
       return;
     }
 
-    const res = $("resourcesSection");
     const log = $("logSection");
     const breachPanel = $("breachPanel");
     const buildingPanel = $("buildingPanel");
@@ -670,7 +707,6 @@
       console.log("[game] Not in game, showing create/join section");
       if (lobbySection) lobbySection.classList.remove("hidden");
       if (info) info.classList.add("hidden");
-      if (res) res.classList.add("hidden");
       if (log) log.classList.add("hidden");
       if (breachPanel) breachPanel.classList.add("hidden");
       if (buildingPanel) buildingPanel.classList.add("hidden");
@@ -688,7 +724,6 @@
       console.log("[game] Rendering lobby phase");
       if (lobbySection) lobbySection.classList.remove("hidden");
       if (info) info.classList.add("hidden");
-      if (res) res.classList.add("hidden");
       if (log) log.classList.add("hidden");
       if (breachPanel) breachPanel.classList.add("hidden");
       if (buildingPanel) buildingPanel.classList.add("hidden");
@@ -715,7 +750,6 @@
     hideGameEndedInactive();
     lobbySection.classList.add("hidden");
     info.classList.remove("hidden");
-    res.classList.remove("hidden");
     log.classList.remove("hidden");
     const gameTopbarGameId = $("gameTopbarGameId");
     const gameTimer = $("gameTimer");
@@ -723,7 +757,7 @@
     if (gameTimer) gameTimer.classList.remove("hidden");
     
     renderBoard();
-    
+    renderTokens();
     renderPlayers();
     renderDice();
     renderInventory();

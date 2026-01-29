@@ -279,10 +279,26 @@ a:hover {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  padding: 12px 20px;
-  min-height: 48px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
+  min-height: 40px;
   border-bottom: 1px solid var(--border);
+}
+.game-topbar .game-topbar-left {
+  flex-shrink: 0;
+}
+.resource-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-end;
+}
+.resource-bar.hidden {
+  display: none !important;
 }
 
 .game-topbar-left {
@@ -338,9 +354,21 @@ a:hover {
   width: 100%;
   max-width: 1400px;
   margin: 0 auto;
-  padding: 24px;
-  padding-bottom: 120px;
+  padding: 12px 16px;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+#gameInfoSection {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: visible;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 .game-header {
@@ -557,15 +585,15 @@ a:hover {
 .game-section {
   margin-bottom: 20px;
   padding: 24px;
-  background: linear-gradient(135deg, var(--card) 0%, rgba(26, 26, 31, 0.95) 100%);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  box-shadow: var(--shadow-md);
-  transition: all 0.2s ease;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  transition: none;
 }
 .game-section:hover {
-  border-color: var(--border-hover);
-  box-shadow: var(--shadow-lg);
+  border-color: transparent;
+  box-shadow: none;
 }
 .game-section h3 {
   margin: 0 0 14px 0;
@@ -600,13 +628,27 @@ a:hover {
 }
 
 .event-log {
-  max-height: 220px;
+  max-height: 140px;
   overflow-y: auto;
   font-size: 0.9rem;
   color: var(--muted);
 }
 .event-log div {
   margin-bottom: 6px;
+}
+
+#logSection {
+  margin: 16px auto 24px;
+  max-width: 1300px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(26, 26, 31, 0.7);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+#logSection h3 {
+  margin-bottom: 8px;
+  font-size: 0.7rem;
 }
 
 .offer-panel {
@@ -1169,6 +1211,10 @@ a:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-sm);
 }
+.resource-bar .inventory-chip {
+  padding: 6px 10px;
+  font-size: 0.8rem;
+}
 
 /* Play page layout - Fixed full-screen (overflow only on .play-layout) */
 html, body {
@@ -1418,7 +1464,172 @@ html, body {
   margin: 0 0 16px 0;
 }
 
-/* Board Game Layout: left panel, board, right panel same row, align tops */
+/* Game HUD: one-screen layout — top bar (back + game id + resource bar), body = players | board | dice */
+.game-hud {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.hud-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 200px 1fr 220px;
+  gap: 20px;
+  padding: 8px 0;
+  align-items: start;
+}
+.game-play-area {
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+.hud-left {
+  min-width: 0;
+  overflow-y: auto;
+  max-height: 100%;
+  padding-left: 0;
+}
+.hud-center {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.hud-right {
+  min-width: 0;
+}
+.board-container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 0;
+  padding: 0;
+}
+.board-container .soure-board {
+  max-width: min(1100px, 85%);
+  width: 100%;
+}
+.players-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.player-card {
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  border-left: 3px solid transparent;
+}
+.player-card.current {
+  border-left-color: var(--accent);
+  background: rgba(139, 92, 246, 0.08);
+}
+.player-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0;
+  font-size: 0.85rem;
+}
+.player-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.player-color-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.25);
+  flex-shrink: 0;
+}
+.player-card-header strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.player-card-stats {
+  display: flex;
+  gap: 8px;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+.dice-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+.dice-panel .dice-container-inline {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+.dice-panel .game-actions-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  max-width: 140px;
+}
+.dice-panel .dice-card {
+  width: 44px;
+  height: 44px;
+}
+.dice-panel .dice-img,
+.dice-panel .dice-text {
+  font-size: 0.85rem;
+}
+
+/* Fit-to-screen: reduce heights so game view fits on 1366x768 / 1440x900 without scrolling */
+@media (max-height: 900px) {
+  .game-topbar {
+    padding: 6px 12px;
+    min-height: 36px;
+  }
+  .resource-bar .inventory-chip {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+  }
+  .hud-body {
+    padding: 6px 0;
+    gap: 10px;
+  }
+  .board-container {
+    padding: 4px 0;
+  }
+  .board-container .soure-board {
+    max-width: min(960px, 80vw);
+  }
+  .player-card {
+    padding: 8px 10px;
+  }
+  .player-card-header {
+    font-size: 0.85rem;
+  }
+  .player-card-stats,
+  .player-card-resources {
+    font-size: 0.7rem;
+  }
+}
+@media (max-height: 768px) {
+  .game-container {
+    padding: 8px 12px;
+  }
+  .board-container .soure-board {
+    max-width: min(840px, 75vw);
+  }
+}
+
+/* Legacy layout (kept for any refs) */
 .game-layout-main {
   display: grid;
   grid-template-columns: 110px 1fr 150px;
@@ -1427,30 +1638,25 @@ html, body {
   align-items: start;
   min-height: 0;
 }
-
 .game-sidebar {
   padding: 4px 0;
   max-width: 110px;
 }
-
 .player-list-detailed {
   display: flex;
   flex-direction: column;
   gap: 6px;
   margin-top: 8px;
 }
-
 .player-item-detailed {
   padding: 6px 10px;
   border-radius: 6px;
   border-left: 3px solid transparent;
 }
-
 .player-item-detailed.current {
   border-left-color: var(--accent);
   background: rgba(139, 92, 246, 0.08);
 }
-
 .player-header {
   display: flex;
   justify-content: space-between;
@@ -1501,9 +1707,10 @@ html, body {
   min-height: 0;
 }
 
+/* Board: clean rectangular frame, dominant centerpiece (~15–25% larger) */
 .soure-board {
   position: relative;
-  width: min(900px, 75vw);
+  width: min(1100px, 85%);
   aspect-ratio: 4 / 3;
   margin: 0 auto;
   border: 2px solid var(--border);
@@ -1530,7 +1737,30 @@ html, body {
   color: var(--muted);
 }
 
-/* Perimeter tracks: TOP 7, BOTTOM 7, LEFT 4, RIGHT 4 — connected spacing */
+/* Token overlay: positions player tokens on perimeter cells (server-authoritative positions). */
+.token-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.token {
+  position: absolute;
+  width: var(--tokenSize, 18px);
+  height: var(--tokenSize, 18px);
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  box-sizing: border-box;
+}
+.token-circle {
+  border-radius: 999px;
+}
+.token-square {
+  border-radius: 6px;
+}
+
+/* Perimeter tracks: one gap (8px), one padding (8px), equal spacing everywhere */
 .track.top {
   position: absolute;
   left: var(--track);
@@ -1539,7 +1769,7 @@ html, body {
   height: var(--track);
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
+  gap: 8px;
   align-items: stretch;
   padding: 8px;
 }
@@ -1552,7 +1782,7 @@ html, body {
   height: var(--track);
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
+  gap: 8px;
   align-items: stretch;
   padding: 8px;
 }
@@ -1565,7 +1795,7 @@ html, body {
   width: var(--track);
   display: grid;
   grid-template-rows: repeat(4, 1fr);
-  gap: 4px;
+  gap: 8px;
   padding: 8px;
   align-items: stretch;
 }
@@ -1578,18 +1808,20 @@ html, body {
   width: var(--track);
   display: grid;
   grid-template-rows: repeat(4, 1fr);
-  gap: 4px;
+  gap: 8px;
   padding: 8px;
   align-items: stretch;
 }
 
-/* Perimeter tiles: one system — same border, radius, glow */
+/* Perimeter tiles: rectangles from grid (no aspect-ratio), same border/radius everywhere */
 .track-slot {
+  position: relative;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: rgba(30, 20, 60, 0.35);
   box-shadow: 0 0 8px rgba(139, 92, 246, 0.08);
-  min-height: 48px;
+  min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -1597,12 +1829,15 @@ html, body {
   text-align: center;
   padding: 6px;
 }
-
+.track.top .track-slot,
+.track.bottom .track-slot {
+  min-height: 40px;
+}
 .track.left .track-slot,
 .track.right .track-slot {
-  min-height: 72px;
-  padding: 8px;
+  min-width: 40px;
 }
+
 
 .track.left .slot-label,
 .track.right .slot-label {
@@ -1629,37 +1864,31 @@ html, body {
   margin-top: 4px;
 }
 
-/* Corner triangles: part of board frame — clip-path only, no rectangle */
+/* Corner circles: 4 identical circles, same size, same offset from edges (symmetric) */
 .corner {
   position: absolute;
-  width: var(--corner);
-  height: var(--corner);
-  border: none;
-  background: rgba(120, 70, 220, 0.12);
+  width: 72px;
+  height: 72px;
+  border-radius: 9999px;
+  background: rgba(12, 10, 24, 0.85);
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 16px var(--accent-glow-strong), inset 0 0 10px rgba(139, 92, 246, 0.2);
 }
-
 .corner-tl {
-  left: 0;
-  top: 0;
-  clip-path: polygon(0 0, 100% 0, 0 100%);
+  top: 12px;
+  left: 12px;
 }
-
 .corner-tr {
-  right: 0;
-  top: 0;
-  clip-path: polygon(0 0, 100% 0, 100% 100%);
+  top: 12px;
+  right: 12px;
 }
-
 .corner-bl {
-  left: 0;
-  bottom: 0;
-  clip-path: polygon(0 0, 0 100%, 100% 100%);
+  bottom: 12px;
+  left: 12px;
 }
-
 .corner-br {
-  right: 0;
-  bottom: 0;
-  clip-path: polygon(100% 0, 0 100%, 100% 100%);
+  bottom: 12px;
+  right: 12px;
 }
 
 .building {
@@ -1939,6 +2168,17 @@ html, body {
     grid-template-columns: 1fr;
     gap: 16px;
   }
+  .hud-body {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .hud-left {
+    order: -1;
+    max-height: 180px;
+  }
+  .hud-right {
+    order: 1;
+  }
   .game-sidebar {
     order: -1;
   }
@@ -1946,7 +2186,11 @@ html, body {
     width: min(100%, 95vw);
     max-width: 100%;
   }
-  .game-actions-panel {
+  .board-container .soure-board {
+    max-width: min(100%, 95vw);
+  }
+  .game-actions-panel,
+  .dice-panel {
     order: 1;
   }
 }

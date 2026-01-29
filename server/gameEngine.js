@@ -1,7 +1,26 @@
 "use strict";
 
-const RESOURCE_TYPES = ["stone", "iron", "food", "water", "gold", "people"]; // MVP: includes people for testing
+const { TRACK, TRACK_LEN, TOKEN_PALETTE } = require("./track");
+const RESOURCE_TYPES = ["stone", "iron", "food", "water", "gold"];
 const BUILDING_TYPES = ["outpost", "citadel", "capital", "bastion"];
+
+const CORNER_DOM_IDS = ["corner-tl", "corner-tr", "corner-br", "corner-bl"];
+const CORNER_TRACK_INDEX_BY_CORNER = CORNER_DOM_IDS.map((domId) =>
+  TRACK.findIndex((t) => t.domId === domId)
+);
+
+function pickPlayerColor(players) {
+  const used = new Set(players.map((p) => p.color).filter(Boolean));
+  const available = TOKEN_PALETTE.find((c) => !used.has(c));
+  return available || TOKEN_PALETTE[players.length % TOKEN_PALETTE.length];
+}
+
+function pickCornerIndex(players) {
+  const used = new Set(players.map((p) => p.cornerIndex).filter((c) => c != null));
+  const available = [0, 1, 2, 3].filter((c) => !used.has(c));
+  if (available.length === 0) return 0;
+  return available[Math.floor(Math.random() * available.length)];
+}
 
 // Number tokens for resource tiles (2–12, Catan-style; 18 tokens for 18 resource hexes)
 const NUMBER_TOKENS = [2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12];
@@ -30,7 +49,7 @@ const HEX_ADJACENCY = [
 ];
 
 function emptyResources() {
-  return { stone: 0, iron: 0, food: 0, water: 0, gold: 0, people: 0 }; // MVP: includes people
+  return { stone: 0, iron: 0, food: 0, water: 0, gold: 0 };
 }
 
 function totalResources(res) {
@@ -67,8 +86,8 @@ function shuffleArray(array) {
 }
 
 function generateBoard() {
-  // 18 resource tiles: 3 of each type. 1 Grand Bazaar. Total 19 (Catan-style).
-  const RESOURCE_COUNTS = { stone: 3, iron: 3, food: 3, water: 3, gold: 3, people: 3 };
+  // 18 resource tiles: 1 Grand Bazaar. Total 19 (Catan-style layout).
+  const RESOURCE_COUNTS = { stone: 4, iron: 4, food: 4, water: 3, gold: 3 };
   const tileTypes = [];
   for (const [type, count] of Object.entries(RESOURCE_COUNTS)) {
     for (let i = 0; i < count; i++) tileTypes.push(type);
@@ -146,6 +165,10 @@ class SoureGame {
     this.creatorId = null;
     this.matchStartTime = null;
     this.board = null; // Will be generated on startMatch
+    /** @type {Record<string, number>} token position index into TRACK (server-authoritative). */
+    this.tokenPosByPlayerId = {};
+    /** @type {Record<string, { shape: "circle"|"square", color: string }>} stable per player. */
+    this.tokenStyleByPlayerId = {};
   }
 
   /**
@@ -154,11 +177,16 @@ class SoureGame {
    */
   addPlayer(id, name) {
     if (this.players.some((p) => p.id === id)) return;
-    this.players.push({ id, name });
+    const color = pickPlayerColor(this.players);
+    const cornerIndex = pickCornerIndex(this.players);
+    const startTrackIndex = CORNER_TRACK_INDEX_BY_CORNER[cornerIndex] ?? 0;
+    this.players.push({ id, name, color, cornerIndex, position: startTrackIndex });
     this.resources[id] = emptyResources();
     this.population[id] = { max: 3, used: 0 };
     this.dominionPoints[id] = 0;
     this.defenseLevel[id] = 0;
+    this.tokenPosByPlayerId[id] = startTrackIndex;
+    this.tokenStyleByPlayerId[id] = { shape: "circle", color };
     addToLog(this.eventLog, `${name} joined the game.`);
   }
 
@@ -192,6 +220,10 @@ class SoureGame {
     this.phase = "roll";
     this.currentTurnIndex = 0;
     this.matchStartTime = Date.now();
+    this.players.forEach((p) => {
+      const existing = this.tokenPosByPlayerId[p.id];
+      this.tokenPosByPlayerId[p.id] = existing ?? p.position ?? 0;
+    });
     const current = this.players[this.currentTurnIndex];
     addToLog(this.eventLog, `Match started! Board generated. ${current.name} goes first.`);
     return { ok: true };
@@ -355,6 +387,13 @@ class SoureGame {
     this.lastRoll = { d1, d2, total, isDouble };
     this.extraTurn = isDouble;
 
+    // Advance current player's token by (d1 + d2) steps; wrap around track.
+    const steps = d1 + d2;
+    const currentPos = this.tokenPosByPlayerId[current.id] ?? 0;
+    this.tokenPosByPlayerId[current.id] = (currentPos + steps) % TRACK_LEN;
+    const currentPlayer = this.players.find((p) => p.id === current.id);
+    if (currentPlayer) currentPlayer.position = this.tokenPosByPlayerId[current.id];
+
     // Breach event (roll 7)
     if (total === 7) {
       this.handleBreach(current);
@@ -435,18 +474,7 @@ class SoureGame {
       }
     }
     
-    // MVP: Simple People tile resource drop (no building required for testing)
-    const peopleTiles = this.board.tiles.filter(t => 
-      t.type === "people" && t.number === rolledNumber && t.id !== this.board.blockedTileId
-    );
-    
-    if (peopleTiles.length > 0) {
-      this.resources[current.id].people += 1;
-      addToLog(this.eventLog, `${current.name} received 1 people from People tile (rolled ${rolledNumber}).`);
-      console.log(`[gameEngine] ${current.name} received 1 people from People tile`);
-      resourcesGranted = true;
-    }
-    
+    // People tiles removed: no roll-based People gains.
     if (!resourcesGranted) {
       console.log(`[gameEngine] No resources granted for roll ${rolledNumber} (no matching tiles or all blocked)`);
     }
@@ -566,6 +594,9 @@ class SoureGame {
         id: p.id,
         name: p.name,
         username: p.name,
+        color: p.color,
+        cornerIndex: p.cornerIndex,
+        position: p.position,
         population: this.population[p.id],
         dominionPoints: this.dominionPoints[p.id] || 0,
         defenseLevel: this.defenseLevel[p.id] || 0
@@ -587,6 +618,8 @@ class SoureGame {
         })),
         blockedTileId: this.board.blockedTileId
       } : null,
+      tokenPosByPlayerId: { ...this.tokenPosByPlayerId },
+      tokenStyleByPlayerId: { ...this.tokenStyleByPlayerId }
     };
   }
 }

@@ -8,13 +8,14 @@
 </head>
 <body>
   <div class="game-page">
-    <header class="game-topbar">
+    <header class="game-topbar hud-top-bar">
       <div class="game-topbar-left">
         <a href="/" class="game-back-btn" aria-label="Back to menu">← Back to Menu</a>
         <span class="game-topbar-sep" aria-hidden="true">|</span>
         <span id="gameTopbarGameId" class="game-topbar-gameid">Game ID: —</span>
         <span id="gameTimer" class="game-timer hidden" aria-live="polite">Time: 00:00</span>
       </div>
+      <div id="resourceBar" class="resource-bar hidden" aria-label="My resources"></div>
     </header>
 
     <div class="game-container">
@@ -37,43 +38,47 @@
       </div>
     </section>
 
-    <section class="game-section hidden" id="gameInfoSection">
-      <div class="game-layout-main">
-        <aside class="game-sidebar">
-          <h3>Players</h3>
-          <div id="playerList" class="player-list-detailed"></div>
-        </aside>
+    <section class="game-section hidden" id="gameInfoSection" aria-label="Game view">
+      <div class="game-hud">
+        <div class="hud-body game-play-area">
+          <aside class="hud-left" aria-label="Players">
+            <div class="players-list" id="playersList"></div>
+          </aside>
 
-        <div class="game-board-wrap">
-          <div class="soure-board" id="soureBoard" role="img" aria-label="Game board">
-            <div class="corner corner-tl" aria-hidden="true"></div>
-            <div class="corner corner-tr" aria-hidden="true"></div>
-            <div class="corner corner-bl" aria-hidden="true"></div>
-            <div class="corner corner-br" aria-hidden="true"></div>
+          <main class="hud-center" aria-label="Board">
+            <div id="boardContainer" class="board-container">
+              <div class="soure-board" id="soureBoard" role="img" aria-label="Game board">
+                <div id="corner-tl" class="corner corner-tl" aria-hidden="true"></div>
+                <div id="corner-tr" class="corner corner-tr" aria-hidden="true"></div>
+                <div id="corner-bl" class="corner corner-bl" aria-hidden="true"></div>
+                <div id="corner-br" class="corner corner-br" aria-hidden="true"></div>
 
-            <div class="track top" id="trackTop"></div>
-            <div class="track right" id="trackRight"></div>
-            <div class="track bottom" id="trackBottom"></div>
-            <div class="track left" id="trackLeft"></div>
+                <div class="track top" id="trackTop"></div>
+                <div class="track right" id="trackRight"></div>
+                <div class="track bottom" id="trackBottom"></div>
+                <div class="track left" id="trackLeft"></div>
 
-            <div class="board-center" id="boardCenter"></div>
-          </div>
+                <div class="board-center" id="boardCenter"></div>
+                <div id="tokenLayer" class="token-layer" aria-hidden="true"></div>
+              </div>
+            </div>
+          </main>
+
+          <aside class="hud-right" aria-label="Dice and actions">
+            <div class="dice-panel">
+              <div id="diceContainer" class="dice-container-inline">
+                <div class="dice-card dice-slot" id="dice1"><img id="dice1Img" alt="" class="dice-img"/><span id="dice1Text" class="dice-text">?</span></div>
+                <div class="dice-card dice-slot" id="dice2"><img id="dice2Img" alt="" class="dice-img"/><span id="dice2Text" class="dice-text">?</span></div>
+              </div>
+              <div id="diceResult" class="dice-result-inline hidden"></div>
+              <div class="game-actions-inline">
+                <button type="button" class="btn btn-primary hidden" id="rollBtn">Roll Dice</button>
+                <button type="button" class="btn hidden" id="endTurnBtn">End Turn</button>
+                <button type="button" class="btn hidden" id="blockTileBtn">Block Tile</button>
+              </div>
+            </div>
+          </aside>
         </div>
-
-        <aside class="game-actions-panel">
-          <div class="dice-panel-inline">
-            <div id="diceContainer" class="dice-container-inline">
-              <div class="dice-card dice-slot" id="dice1"><img id="dice1Img" alt="" class="dice-img"/><span id="dice1Text" class="dice-text">?</span></div>
-              <div class="dice-card dice-slot" id="dice2"><img id="dice2Img" alt="" class="dice-img"/><span id="dice2Text" class="dice-text">?</span></div>
-            </div>
-            <div id="diceResult" class="dice-result-inline hidden"></div>
-            <div class="game-actions-inline">
-              <button type="button" class="btn btn-primary hidden" id="rollBtn">Roll Dice</button>
-              <button type="button" class="btn hidden" id="endTurnBtn">End Turn</button>
-              <button type="button" class="btn hidden" id="blockTileBtn">Block Tile</button>
-            </div>
-          </div>
-        </aside>
       </div>
 
       <div id="breachPanel" class="breach-panel hidden">
@@ -93,12 +98,7 @@
       </div>
     </section>
 
-    <section class="game-section hidden" id="resourcesSection">
-      <h3>Resources</h3>
-      <div class="resources-grid" id="resourcesGrid"></div>
-    </section>
-
-    <section class="game-section hidden" id="logSection">
+    <section class="game-section hidden" id="logSection" aria-label="Event log">
       <h3>Event log</h3>
       <div class="event-log" id="eventLog"></div>
     </section>
@@ -107,14 +107,8 @@
     </div>
   </div>
 
-  <div class="inventory-bar hidden" id="inventoryBar">
-    <div class="inventory-content">
-      <span class="inventory-label">My Resources:</span>
-      <div class="inventory-chips" id="inventoryChips"></div>
-    </div>
-  </div>
-
   <script src="/socket.io/socket.io.js"></script>
+  <script src="/track.js"></script>
   <script src="/game.js"></script>
 </body>
 </html>
