@@ -1215,8 +1215,8 @@ a:hover {
   box-shadow: var(--shadow-sm);
 }
 .resource-bar .inventory-chip {
-  padding: 6px 10px;
-  font-size: 0.8rem;
+  padding: 4px 8px;
+  font-size: 0.75rem;
 }
 
 /* Play page layout - Fixed full-screen (overflow only on .play-layout) */

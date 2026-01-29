@@ -1,12 +1,18 @@
 "use strict";
 
-const { TRACK, TRACK_LEN, TOKEN_PALETTE } = require("./track");
+const { TRACK_TILES, TRACK_LEN, TOKEN_PALETTE } = require("./track");
 const RESOURCE_TYPES = ["stone", "iron", "food", "water", "gold"];
 const BUILDING_TYPES = ["outpost", "citadel", "capital", "bastion"];
 
 const CORNER_DOM_IDS = ["corner-tl", "corner-tr", "corner-br", "corner-bl"];
+const CORNER_START_INDEX_BY_DOM_ID = {
+  "corner-tl": 0,
+  "corner-tr": 7,
+  "corner-br": 11,
+  "corner-bl": 18
+};
 const CORNER_TRACK_INDEX_BY_CORNER = CORNER_DOM_IDS.map((domId) =>
-  TRACK.findIndex((t) => t.domId === domId)
+  CORNER_START_INDEX_BY_DOM_ID[domId] ?? 0
 );
 
 function pickPlayerColor(players) {
@@ -74,6 +80,29 @@ function randomDiscard(res, count) {
 function addToLog(log, msg) {
   log.push({ t: Date.now(), msg });
   if (log.length > 50) log.shift();
+}
+
+/**
+ * Award resource ONLY when a player's token lands on a resource field.
+ * Called once per movement resolution (inside rollDice, right after position is updated).
+ * Reconnect does not re-call rollDice, so no double-award.
+ * @param {SoureGame} game
+ * @param {string} playerId
+ */
+function awardLandingResource(game, playerId) {
+  const position = game.tokenPosByPlayerId[playerId];
+  if (position == null) return;
+  const cell = TRACK_TILES[position];
+  if (!cell || !cell.resourceType) return;
+  const resourceType = cell.resourceType;
+  if (!RESOURCE_TYPES.includes(resourceType)) return;
+  const playerRes = game.resources[playerId];
+  if (!playerRes) return;
+  const amount = 1;
+  playerRes[resourceType] += amount;
+  const player = game.players.find((p) => p.id === playerId);
+  const name = player ? player.name : "Player";
+  addToLog(game.eventLog, `${name} landed on ${resourceType} and received +${amount} ${resourceType}.`);
 }
 
 function shuffleArray(array) {
@@ -164,6 +193,8 @@ class SoureGame {
     this.eventLog = [];
     this.creatorId = null;
     this.matchStartTime = null;
+    this.turnNumber = 0;
+    this.lastRollTurn = null;
     this.board = null; // Will be generated on startMatch
     /** @type {Record<string, number>} token position index into TRACK (server-authoritative). */
     this.tokenPosByPlayerId = {};
@@ -220,6 +251,8 @@ class SoureGame {
     this.phase = "roll";
     this.currentTurnIndex = 0;
     this.matchStartTime = Date.now();
+    this.turnNumber = 1;
+    this.lastRollTurn = null;
     this.players.forEach((p) => {
       const existing = this.tokenPosByPlayerId[p.id];
       this.tokenPosByPlayerId[p.id] = existing ?? p.position ?? 0;
@@ -378,6 +411,9 @@ class SoureGame {
     if (current.id !== userId) {
       return { ok: false, error: "Only the current player can roll" };
     }
+    if (this.lastRollTurn === this.turnNumber) {
+      return { ok: false, error: "Already rolled this turn" };
+    }
 
     const d1 = Math.floor(Math.random() * 6) + 1;
     const d2 = Math.floor(Math.random() * 6) + 1;
@@ -390,15 +426,39 @@ class SoureGame {
     // Advance current player's token by (d1 + d2) steps; wrap around track.
     const steps = d1 + d2;
     const currentPos = this.tokenPosByPlayerId[current.id] ?? 0;
-    this.tokenPosByPlayerId[current.id] = (currentPos + steps) % TRACK_LEN;
+    const nextPos = (currentPos + steps) % TRACK_LEN;
+    this.tokenPosByPlayerId[current.id] = nextPos;
     const currentPlayer = this.players.find((p) => p.id === current.id);
     if (currentPlayer) currentPlayer.position = this.tokenPosByPlayerId[current.id];
+    this.lastRollTurn = this.turnNumber;
+
+    // Award resource ONLY when token lands on a resource field (once per movement resolution).
+    awardLandingResource(this, current.id);
+    const landedCell = TRACK_TILES[this.tokenPosByPlayerId[current.id]];
+    const landedResource = landedCell && landedCell.resourceType ? landedCell.resourceType : "none";
+    console.log(
+      `[gameEngine] ${current.name} rolled ${total}, moved ${currentPos} -> ${this.tokenPosByPlayerId[current.id]}, landed on ${this.tokenPosByPlayerId[current.id]} (${landedResource})`
+    );
+    console.log(
+      "[gameEngine] rollDice",
+      JSON.stringify({
+        ts: Date.now(),
+        gameId: this.gameId,
+        playerId: current.id,
+        oldIndex: currentPos,
+        d1,
+        d2,
+        totalSteps: steps,
+        newIndex: nextPos,
+        trackLen: TRACK_LEN
+      })
+    );
 
     // Breach event (roll 7)
     if (total === 7) {
       this.handleBreach(current);
       // Auto-block a random resource tile (MVP: prevent game freeze)
-      const resourceTiles = this.board.tiles.filter(t => 
+      const resourceTiles = this.board.tiles.filter(t =>
         t.type !== "grandBazaar" && t.id !== this.board.blockedTileId
       );
       if (resourceTiles.length > 0) {
@@ -410,74 +470,13 @@ class SoureGame {
       return { ok: true, roll: this.lastRoll, breach: true };
     }
 
-    // Normal resource production
-    this.distributeResources(total);
-    
     this.phase = "main";
-    addToLog(this.eventLog, `Rolled ${total}. Resources distributed.`);
+    addToLog(this.eventLog, `Rolled ${total}.`);
     if (isDouble) {
       addToLog(this.eventLog, `Doubles! ${current.name} gets an extra turn.`);
     }
 
     return { ok: true, roll: this.lastRoll, breach: false };
-  }
-
-  /**
-   * Distribute resources based on rolled number
-   */
-  distributeResources(rolledNumber) {
-    console.log(`[gameEngine] distributeResources called for roll: ${rolledNumber}`);
-    const activatedTiles = this.board.tiles.filter(t => 
-      t.number === rolledNumber && t.id !== this.board.blockedTileId
-    );
-    
-    console.log(`[gameEngine] Found ${activatedTiles.length} activated tiles for number ${rolledNumber}`);
-    
-    const current = this.players[this.currentTurnIndex];
-    let resourcesGranted = false;
-    
-    // First, check for buildings on activated tiles
-    for (const tile of activatedTiles) {
-      if (tile.buildings && tile.buildings.length > 0) {
-        for (const building of tile.buildings) {
-          const playerId = building.playerId;
-          let amount = 0;
-          
-          if (building.type === "outpost") {
-            amount = 1;
-          } else if (building.type === "citadel") {
-            amount = 2;
-          } else if (building.type === "capital") {
-            amount = 3;
-          }
-          
-          if (amount > 0 && tile.type !== "grandBazaar") {
-            const resourceType = tile.type;
-            if (RESOURCE_TYPES.includes(resourceType)) {
-              this.resources[playerId][resourceType] += amount;
-              const player = this.players.find(p => p.id === playerId);
-              addToLog(this.eventLog, `${player?.name} received ${amount} ${resourceType} from ${building.type} on tile ${tile.id}.`);
-              console.log(`[gameEngine] ${player?.name} received ${amount} ${resourceType} from building`);
-              resourcesGranted = true;
-            }
-          }
-        }
-      } else {
-        // MVP: If no buildings, grant current player +1 resource from matching tile (temporary for testing)
-        if (tile.type !== "grandBazaar" && RESOURCE_TYPES.includes(tile.type)) {
-          const resourceType = tile.type;
-          this.resources[current.id][resourceType] += 1;
-          addToLog(this.eventLog, `${current.name} received 1 ${resourceType} from tile ${tile.id} (no building yet).`);
-          console.log(`[gameEngine] ${current.name} received 1 ${resourceType} from tile ${tile.id} (MVP: no building)`);
-          resourcesGranted = true;
-        }
-      }
-    }
-    
-    // People tiles removed: no roll-based People gains.
-    if (!resourcesGranted) {
-      console.log(`[gameEngine] No resources granted for roll ${rolledNumber} (no matching tiles or all blocked)`);
-    }
   }
 
   /**
@@ -575,6 +574,7 @@ class SoureGame {
     if (this.extraTurn) {
       this.extraTurn = false;
       this.phase = "roll";
+      this.turnNumber += 1;
       addToLog(this.eventLog, `${current.name} ends extra turn. Rolling again.`);
       return { ok: true, extraTurnUsed: true };
     }
@@ -582,6 +582,7 @@ class SoureGame {
     this.currentTurnIndex = (this.currentTurnIndex + 1) % this.players.length;
     const next = this.players[this.currentTurnIndex];
     this.phase = "roll";
+    this.turnNumber += 1;
     addToLog(this.eventLog, `Turn passed to ${next.name}.`);
     return { ok: true, extraTurnUsed: false };
   }
@@ -619,7 +620,14 @@ class SoureGame {
         blockedTileId: this.board.blockedTileId
       } : null,
       tokenPosByPlayerId: { ...this.tokenPosByPlayerId },
-      tokenStyleByPlayerId: { ...this.tokenStyleByPlayerId }
+      tokenStyleByPlayerId: { ...this.tokenStyleByPlayerId },
+      track: TRACK_TILES.map((cell) => ({
+        index: cell.index,
+        id: cell.id,
+        type: cell.type,
+        domId: cell.domId,
+        resourceType: cell.resourceType
+      }))
     };
   }
 }

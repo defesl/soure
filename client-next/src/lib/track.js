@@ -1,18 +1,5 @@
-"use strict";
-
-/**
- * Resource types for track slots (must match gameEngine RESOURCE_TYPES).
- * Used to assign resourceType to each resource slot on the perimeter track.
- */
 const TRACK_RESOURCE_TYPES = ["stone", "iron", "food", "water", "gold"];
-
-/**
- * Canonical ordered list of resource tiles on the perimeter track (clockwise).
- * Corners are NOT part of the track index list.
- * Order: top row (left→right), right side (top→bottom),
- * bottom row (right→left), left side (bottom→top).
- */
-const TRACK_TILES_RAW = [
+const TRACK_RAW = [
   { id: "top-0", domId: "cell-top-0" },
   { id: "top-1", domId: "cell-top-1" },
   { id: "top-2", domId: "cell-top-2" },
@@ -34,19 +21,14 @@ const TRACK_TILES_RAW = [
   { id: "left-3", domId: "cell-left-3" },
   { id: "left-2", domId: "cell-left-2" },
   { id: "left-1", domId: "cell-left-1" },
-  { id: "left-0", domId: "cell-left-0" }
+  { id: "left-0", domId: "cell-left-0" },
 ];
 
 let resourceSlotIndex = 0;
-const TRACK_TILES = TRACK_TILES_RAW.map((cell, index) => {
+export const TRACK = TRACK_RAW.map((cell, index) => {
   const resourceType = TRACK_RESOURCE_TYPES[resourceSlotIndex % TRACK_RESOURCE_TYPES.length];
   resourceSlotIndex += 1;
-  return { index, type: "resource", resourceType, ...cell };
+  return { ...cell, index, type: "resource", resourceType };
 });
 
-const TRACK_LEN = TRACK_TILES.length;
-
-/** Predefined player colors (no duplicates for first 4 players). */
-const TOKEN_PALETTE = ["#ef4444", "#22c55e", "#38bdf8", "#facc15"];
-
-module.exports = { TRACK_TILES, TRACK_LEN, TOKEN_PALETTE };
+export const TRACK_LEN = TRACK.length;

@@ -60,6 +60,25 @@ app.use(express.json());
 app.use(express.static(clientPath));
 app.use(sessionMiddleware);
 
+// Allow Next.js frontend to call API routes with credentials
+const allowedOrigins = (process.env.FRONTEND_ORIGIN || "http://localhost:3001")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+app.use("/api", (req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  }
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+  next();
+});
+
 app.get("/", (_req, res) => {
   res.sendFile(path.join(clientPath, "index.html"));
 });

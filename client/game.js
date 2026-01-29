@@ -398,8 +398,6 @@
     });
   }
 
-  const TRACK_PLACEHOLDER_LABELS = ["Stone", "Water", "Food", "Gold", "Iron"];
-
   function renderBoard() {
     const trackTop = $("trackTop");
     const trackRight = $("trackRight");
@@ -408,11 +406,28 @@
     const boardCenter = $("boardCenter");
     if (!trackTop || !trackRight || !trackBottom || !trackLeft) return;
 
+    const track = (state && state.track && state.track.length) ? state.track : null;
+    if (!track) return;
+    const trackByDomId = {};
+    const trackIndexByDomId = {};
+    if (track && track.length) {
+      track.forEach((cell, i) => {
+        trackByDomId[cell.domId] = cell;
+        trackIndexByDomId[cell.domId] = cell.index != null ? cell.index : i;
+      });
+    }
+
+    function formatResourceLabel(resourceType) {
+      if (!resourceType) return "";
+      return resourceType[0].toUpperCase() + resourceType.slice(1);
+    }
+
     function createSlot(index, label, meta, domId, extraClasses) {
       const slot = document.createElement("div");
-      slot.className = "track-slot" + (extraClasses ? " " + extraClasses : "");
+      slot.className = "track-slot track-tile" + (extraClasses ? " " + extraClasses : "");
       slot.id = domId;
       slot.dataset.index = String(index);
+      slot.setAttribute("data-tile-index", String(index));
       const labelEl = document.createElement("div");
       labelEl.className = "slot-label";
       labelEl.textContent = label;
@@ -424,21 +439,21 @@
       return slot;
     }
 
-    function fillTrack(container, count, startIndex, segmentName) {
+    function fillTrack(container, domIds) {
       container.innerHTML = "";
-      for (let i = 0; i < count; i++) {
-        const idx = startIndex + i;
-        const label = TRACK_PLACEHOLDER_LABELS[idx % TRACK_PLACEHOLDER_LABELS.length];
-        const meta = (idx % 6) === 0 ? "" : "";
-        const domId = "cell-" + segmentName + "-" + i;
+      domIds.forEach((domId) => {
+        const cell = trackByDomId[domId];
+        const idx = trackIndexByDomId[domId] != null ? trackIndexByDomId[domId] : 0;
+        const label = formatResourceLabel(cell && cell.resourceType);
+        const meta = "";
         container.appendChild(createSlot(idx, label, meta, domId));
-      }
+      });
     }
 
-    fillTrack(trackTop, 7, 0, "top");
-    fillTrack(trackRight, 4, 7, "right");
-    fillTrack(trackBottom, 7, 11, "bottom");
-    fillTrack(trackLeft, 4, 18, "left");
+    fillTrack(trackTop, ["cell-top-0", "cell-top-1", "cell-top-2", "cell-top-3", "cell-top-4", "cell-top-5", "cell-top-6"]);
+    fillTrack(trackRight, ["cell-right-0", "cell-right-1", "cell-right-2", "cell-right-3"]);
+    fillTrack(trackBottom, ["cell-bottom-6", "cell-bottom-5", "cell-bottom-4", "cell-bottom-3", "cell-bottom-2", "cell-bottom-1", "cell-bottom-0"]);
+    fillTrack(trackLeft, ["cell-left-3", "cell-left-2", "cell-left-1", "cell-left-0"]);
 
     if (boardCenter) {
       boardCenter.textContent = "";
@@ -453,12 +468,17 @@
 
   /**
    * Render player tokens on the board overlay. Positions come from state (server-authoritative).
-   * TRACK order (window.TRACK) must match server/track.js. Tokens at same cell get a 2x2 grid offset.
+   * TRACK order comes from server/track.js. Tokens at same cell get a 2x2 grid offset.
    */
+  function getTileElByIndex(i) {
+    return document.querySelector(`.track-tile[data-tile-index="${i}"]`);
+  }
+
   function renderTokens() {
     const tokenLayer = $("tokenLayer");
-    const TRACK = window.TRACK;
-    const TRACK_LEN = window.TRACK_LEN;
+    const TRACK = (state && state.track && state.track.length) ? state.track : null;
+    const TRACK_LEN = TRACK ? TRACK.length : 0;
+    const board = $("soureBoard");
     if (!tokenLayer || !TRACK || !TRACK_LEN || !state || !state.players || state.players.length === 0) {
       if (tokenLayer) tokenLayer.innerHTML = "";
       return;
@@ -483,8 +503,7 @@
 
     items.forEach((item) => {
       const entry = TRACK[item.pos];
-      if (!entry) return;
-      const anchor = $(entry.domId);
+      const anchor = getTileElByIndex(item.pos);
       if (!anchor) return;
       const posCount = byPos[item.pos].length;
       const offsetIndex = byPos[item.pos].findIndex((x) => x.player.id === item.player.id);
@@ -492,13 +511,13 @@
       const offsetY = Math.floor(offsetIndex / 2) * OFFSET_STEP;
 
       const anchorRect = anchor.getBoundingClientRect();
-      const layerRect = tokenLayer.getBoundingClientRect();
+      const layerRect = (board || tokenLayer).getBoundingClientRect();
       const left = anchorRect.left - layerRect.left + (anchorRect.width - TOKEN_SIZE) / 2 + offsetX;
       const top = anchorRect.top - layerRect.top + (anchorRect.height - TOKEN_SIZE) / 2 + offsetY;
 
       const token = document.createElement("div");
       token.className = "token " + (item.style.shape === "square" ? "token-square" : "token-circle");
-      token.setAttribute("data-player", item.player.id);
+      token.setAttribute("data-player-id", item.player.id);
       token.setAttribute("aria-hidden", "true");
       token.style.background = item.style.color;
       token.style.width = TOKEN_SIZE + "px";
@@ -509,7 +528,60 @@
     });
   }
 
+  /** Corner circles: color-code by assigned player (border + glow match token color). Unassigned = neutral. */
+  const CORNER_IDS = ["corner-tl", "corner-tr", "corner-br", "corner-bl"];
+  function applyCornerColors() {
+    if (!state || !state.players) return;
+    const cornerIndexToColor = {};
+    state.players.forEach((p) => {
+      if (p.cornerIndex != null && p.color) {
+        cornerIndexToColor[p.cornerIndex] = p.color;
+      }
+    });
+    CORNER_IDS.forEach((id, i) => {
+      const el = $(id);
+      if (!el) return;
+      const color = cornerIndexToColor[i];
+      if (color) {
+        el.style.borderColor = color;
+        el.style.boxShadow = `0 0 12px ${color}, inset 0 0 10px rgba(0,0,0,0.25)`;
+      } else {
+        el.style.borderColor = "";
+        el.style.boxShadow = "";
+      }
+    });
+  }
+
   let selectedBuildingType = null;
+  let lastLandingLogKey = null;
+
+  function logLandingLabel() {
+    if (!state || !state.lastRoll || !state.track || !state.currentTurnPlayerId) return;
+    const playerId = state.currentTurnPlayerId;
+    const pos = state.tokenPosByPlayerId && state.tokenPosByPlayerId[playerId];
+    if (pos == null) return;
+    const cell = state.track.find((c) => c.index === pos) || state.track[pos];
+    const resourceType = cell && cell.resourceType ? cell.resourceType : "none";
+    const key = `${playerId}:${pos}:${state.lastRoll.d1}:${state.lastRoll.d2}`;
+    if (key === lastLandingLogKey) return;
+    lastLandingLogKey = key;
+    let labelFromDom = null;
+    const tileEl = getTileElByIndex(pos);
+    if (tileEl) {
+      const labelEl = tileEl.querySelector(".slot-label");
+      if (labelEl) labelFromDom = labelEl.textContent;
+    }
+    console.log(
+      "[game] landing label for index",
+      pos,
+      "track resource=",
+      resourceType,
+      "dom label=",
+      labelFromDom,
+      "track length=",
+      state.track.length
+    );
+  }
 
   function renderPlayers() {
     const playersList = $("playersList");
@@ -758,11 +830,13 @@
     
     renderBoard();
     renderTokens();
+    applyCornerColors();
     renderPlayers();
     renderDice();
     renderInventory();
     renderBreachPanel();
     renderBuildingPanel();
+    logLandingLabel();
 
     // Game info removed - now in sidebar
 

@@ -7,6 +7,9 @@
   "scripts": {
     "dev": "node server/server.js",
     "start": "node server/server.js",
+    "frontend:dev": "npm run dev --prefix client-next",
+    "frontend:build": "npm run build --prefix client-next",
+    "frontend:start": "npm run start --prefix client-next",
     "setup": "npm install && npm run prisma:generate",
     "test": "echo \"Error: no test specified\" && exit 1",
     "prisma:generate": "prisma generate",

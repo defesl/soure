@@ -22,7 +22,10 @@
       <a href="/friends" class="index-tile index-tile--friends" id="tileFriends" aria-label="Friends">Friends</a>
       <button type="button" class="index-tile index-tile--resources" id="tileResources" aria-label="Resources">Resources</button>
       <button type="button" class="index-tile index-tile--settings" id="tileSettings" aria-label="Open settings">Settings</button>
-      <a href="#" class="index-tile index-tile--reconnect hidden" id="tileReconnect" aria-label="Reconnect to your game">Reconnect</a>
+      <span class="index-reconnect-inline hidden" id="reconnectWrap">
+        <a href="#" class="index-tile index-tile--reconnect" id="tileReconnect" aria-label="Reconnect to your game">Reconnect</a>
+        <span class="index-reconnect-hint" id="reconnectHint">You left an active game</span>
+      </span>
       <a href="/register" class="index-tile index-tile--register hidden" id="tileRegister" aria-label="Register">Register</a>
       <a href="/login" class="index-tile index-tile--login hidden" id="tileLogin" aria-label="Log in">Login</a>
     </nav>
@@ -31,10 +34,6 @@
       Logged in as: <span id="loggedInUsername"></span>
     </div>
 
-    <div id="indexRejoinBanner" class="index-rejoin-banner hidden" role="status">
-      <span class="index-rejoin-text">You were disconnected. Rejoin your current game.</span>
-      <a href="#" class="btn btn-primary" id="indexRejoinBtn" aria-label="Rejoin your current game">Rejoin Game</a>
-    </div>
   </div>
 
   <!-- Settings modal -->
@@ -159,24 +158,20 @@
               return;
             }
             const gameId = data.gameId;
-            const banner = $("indexRejoinBanner");
-            const rejoinBtn = $("indexRejoinBtn");
-            if (banner) banner.classList.remove("hidden");
-            if (rejoinBtn) rejoinBtn.href = "/play/" + gameId;
-
+            const wrap = $("reconnectWrap");
             const tileReconnect = $("tileReconnect");
-            if (tileReconnect) {
-              tileReconnect.href = "/play/" + gameId;
-              tileReconnect.classList.remove("hidden");
-              applyReconnectPosition(tileReconnect);
+            if (tileReconnect) tileReconnect.href = "/play/" + gameId;
+            if (wrap) {
+              wrap.classList.remove("hidden");
+              applyReconnectPosition(wrap);
             }
           })
           .catch(() => { hideReconnectTile(); });
       }
 
       function hideReconnectTile() {
-        const tileReconnect = $("tileReconnect");
-        if (tileReconnect) tileReconnect.classList.add("hidden");
+        const wrap = $("reconnectWrap");
+        if (wrap) wrap.classList.add("hidden");
       }
 
       // Random but safe position: one of 4 predefined positions (no overlap with other tiles).

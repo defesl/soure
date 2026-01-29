@@ -110,6 +110,42 @@ npm start
 npm run dev
 ```
 
+## Next.js Frontend (client-next)
+
+The Next.js frontend runs alongside the existing Express/Socket backend.
+
+### Environment
+
+Copy the example env file:
+```bash
+cp client-next/.env.local.example client-next/.env.local
+```
+
+Defaults are:
+```
+NEXT_PUBLIC_API_BASE=http://localhost:3000
+NEXT_PUBLIC_SOCKET_URL=http://localhost:3000
+```
+
+Optional backend CORS override (if you run the frontend elsewhere):
+```
+FRONTEND_ORIGIN=http://localhost:3001
+```
+
+### Run both backend + frontend
+
+In one terminal (backend):
+```bash
+npm run dev
+```
+
+In another terminal (frontend):
+```bash
+npm run frontend:dev
+```
+
+Frontend runs at `http://localhost:3001`.
+
 ## Production Deployment
 
 For production (e.g., Render, Railway, Heroku):
