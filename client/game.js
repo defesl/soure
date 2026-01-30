@@ -139,6 +139,88 @@
     });
   }
 
+  function assignTrackOrderByGeometry() {
+    const boardRoot = $("soureBoard");
+    if (!boardRoot) return false;
+    const fields = Array.from(boardRoot.querySelectorAll(".track-field"));
+    if (fields.length !== 26) {
+      console.error("[TRACK_GEOM_INVALID]", "field_count", fields.length);
+      return false;
+    }
+
+    const centers = fields.map((el) => {
+      const r = el.getBoundingClientRect();
+      return {
+        el,
+        cx: r.left + r.width / 2,
+        cy: r.top + r.height / 2
+      };
+    });
+
+    const minX = Math.min(...centers.map((c) => c.cx));
+    const maxX = Math.max(...centers.map((c) => c.cx));
+    const minY = Math.min(...centers.map((c) => c.cy));
+    const maxY = Math.max(...centers.map((c) => c.cy));
+    const tol = Math.max(10, Math.max(maxX - minX, maxY - minY) * 0.05);
+
+    const top = [];
+    const bottom = [];
+    const left = [];
+    const right = [];
+    let TL = null;
+    let TR = null;
+    let BR = null;
+    let BL = null;
+
+    centers.forEach((c) => {
+      const isTop = Math.abs(c.cy - minY) <= tol;
+      const isBottom = Math.abs(c.cy - maxY) <= tol;
+      const isLeft = Math.abs(c.cx - minX) <= tol;
+      const isRight = Math.abs(c.cx - maxX) <= tol;
+
+      if (isTop && isLeft) TL = c;
+      else if (isTop && isRight) TR = c;
+      else if (isBottom && isRight) BR = c;
+      else if (isBottom && isLeft) BL = c;
+      else if (isTop) top.push(c);
+      else if (isRight) right.push(c);
+      else if (isBottom) bottom.push(c);
+      else if (isLeft) left.push(c);
+    });
+
+    if (!TL || !TR || !BR || !BL) {
+      console.error("[TRACK_GEOM_INVALID]", { TL: !!TL, TR: !!TR, BR: !!BR, BL: !!BL });
+      return false;
+    }
+
+    top.sort((a, b) => a.cx - b.cx);
+    right.sort((a, b) => a.cy - b.cy);
+    bottom.sort((a, b) => b.cx - a.cx);
+    left.sort((a, b) => b.cy - a.cy);
+
+    const order = [
+      TL,
+      ...top,
+      TR,
+      ...right,
+      BR,
+      ...bottom,
+      BL,
+      ...left
+    ].map((c) => c.el);
+
+    if (order.length !== 26) {
+      console.error("[TRACK_GEOM_INVALID]", "order_len", order.length);
+      return false;
+    }
+
+    order.forEach((el, index) => {
+      el.setAttribute("data-track-index", String(index));
+    });
+
+    return true;
+  }
+
   function diceImgSrc(v) {
     return `/assets/dice/dice-${v}.png`;
   }
@@ -577,6 +659,7 @@
       slot.dataset.index = String(index);
       slot.setAttribute("data-track-index", String(index));
       slot.setAttribute("data-kind", "resource");
+      slot.style.position = "relative";
       const labelEl = document.createElement("div");
       labelEl.className = "slot-label";
       labelEl.textContent = label;
@@ -605,14 +688,17 @@
     fillTrack(trackLeft, ["cell-left-0", "cell-left-1", "cell-left-2", "cell-left-3"]);
 
     track.forEach((field) => {
-      if (field.kind !== "corner") return;
       const el = document.getElementById(field.domId);
       if (!el) return;
-      el.classList.add("track-field", "track-corner");
-      el.setAttribute("data-track-index", String(field.index));
-      el.setAttribute("data-kind", "corner");
-      if (field.cornerId) el.setAttribute("data-corner-id", field.cornerId);
+      el.classList.add("track-field");
+      if (field.kind === "corner") {
+        el.classList.add("track-corner");
+        el.setAttribute("data-kind", "corner");
+        if (field.cornerId) el.setAttribute("data-corner-id", field.cornerId);
+      }
     });
+
+    assignTrackOrderByGeometry();
 
     ensureDebugStyles();
     runTrackAudit("renderBoard");
@@ -637,7 +723,8 @@
   }
 
   function runTrackAudit(source) {
-    const fields = Array.from(document.querySelectorAll(".track-field[data-track-index]"));
+    const boardRoot = $("soureBoard");
+    const fields = Array.from(boardRoot ? boardRoot.querySelectorAll(".track-field[data-track-index]") : []);
     const indices = fields
       .map((el) => Number(el.getAttribute("data-track-index")))
       .filter((n) => Number.isInteger(n))
@@ -668,7 +755,7 @@
       });
     }
     setDebugWarningVisible(invalid);
-    const cornerEls = Array.from(document.querySelectorAll(".track-field.track-corner[data-track-index]"));
+    const cornerEls = Array.from(boardRoot ? boardRoot.querySelectorAll(".track-field.track-corner[data-track-index]") : []);
     const cornerIdxs = cornerEls.map((el) => Number(el.dataset.trackIndex)).filter((n) => Number.isInteger(n));
     const cornerSeen = new Map();
     cornerIdxs.forEach((idx) => {
@@ -693,11 +780,14 @@
       duplicates,
       missing
     });
-    return !invalid;
+    return !invalid && !cornerInvalid;
   }
 
   function getFieldEl(idx) {
-    const matches = document.querySelectorAll(`.track-field[data-track-index="${idx}"]`);
+    const boardRoot = $("soureBoard");
+    const matches = boardRoot
+      ? boardRoot.querySelectorAll(`.track-field[data-track-index="${idx}"]`)
+      : [];
     if (matches.length !== 1) {
       console.error("[FIELD_MATCH_BAD]", idx, matches.length, matches);
       return null;
@@ -723,9 +813,15 @@
     const board = $("soureBoard");
     if (!tokenLayer || !TRACK || !TRACK_LEN || !state || !state.players || state.players.length === 0) {
       if (tokenLayer) tokenLayer.innerHTML = "";
+      if (board) {
+        const existing = board.querySelectorAll(".token");
+        existing.forEach((el) => el.remove());
+      }
       return;
     }
     tokenLayer.innerHTML = "";
+    const existingTokens = board.querySelectorAll(".token");
+    existingTokens.forEach((el) => el.remove());
     const players = state.players;
     const positionIndexByPlayerId = state.positionIndexByPlayerId || {};
     const tokenStyleByPlayerId = state.tokenStyleByPlayerId || {};
@@ -754,11 +850,6 @@
       const offsetX = (offsetIndex % 2) * OFFSET_STEP;
       const offsetY = Math.floor(offsetIndex / 2) * OFFSET_STEP;
 
-      const center = getCenterWithinBoard(board, anchor);
-      if (!center) return;
-      const left = center.x - TOKEN_SIZE / 2 + offsetX;
-      const top = center.y - TOKEN_SIZE / 2 + offsetY;
-
       const token = document.createElement("div");
       token.className = "token " + (item.style.shape === "square" ? "token-square" : "token-circle");
       token.setAttribute("data-player-id", item.player.id);
@@ -766,8 +857,9 @@
       token.style.background = item.style.color;
       token.style.width = TOKEN_SIZE + "px";
       token.style.height = TOKEN_SIZE + "px";
-      token.style.left = left + "px";
-      token.style.top = top + "px";
+      token.style.left = "50%";
+      token.style.top = "50%";
+      token.style.transform = `translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px)`;
       if (isDebugUI()) {
         const badge = document.createElement("div");
         badge.textContent = `idx:${item.pos}`;
@@ -791,7 +883,7 @@
           { offsetLeft: anchor.offsetLeft, offsetTop: anchor.offsetTop, w: anchor.offsetWidth, h: anchor.offsetHeight }
         );
       }
-      tokenLayer.appendChild(token);
+      anchor.appendChild(token);
     });
   }
 
@@ -1137,8 +1229,10 @@
     
     renderBoard();
     applyDebugVisibility();
-    schedulePlacement();
-    runTrackAudit("renderState");
+    const valid = runTrackAudit("renderState");
+    if (valid) {
+      schedulePlacement();
+    }
     applyCornerColors();
     renderPlayers();
     renderDice();
